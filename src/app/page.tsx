@@ -41,8 +41,8 @@ export default function Home() {
         <h2 id="demo-heading">About this demo</h2>
         <p>
           This site demonstrates next-chatbot-kit, a chat assistant for small business websites.
-          Open the chat in the corner of the page and ask a question. The assistant answers only
-          from the content on this site.
+          Open the chat in the corner of the page and ask a question. The assistant is set up to
+          answer from the content on this site.
         </p>
       </aside>
     </>

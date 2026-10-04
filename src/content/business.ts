@@ -1,10 +1,29 @@
 import type { BusinessContent } from "@/chat";
 
-const siteUrl = process.env.SITE_URL?.trim() || "http://localhost:3000";
+/** Trims the value and strips trailing slashes, so paths can be appended with one slash. */
+export function normaliseSiteUrl(value: string | undefined): string {
+  const trimmed = value?.trim().replace(/\/+$/, "") ?? "";
+  return trimmed === "" ? "http://localhost:3000" : trimmed;
+}
+
+/** The pages of the demo, as site paths. The header links come from this list. */
+export const navPages: { title: string; path: string }[] = [
+  { title: "Home", path: "/" },
+  { title: "Treatments and fees", path: "/treatments" },
+  { title: "Contact", path: "/contact" },
+  { title: "Privacy", path: "/privacy" },
+];
+
+/** The pages as full addresses on the given site. */
+export function buildPages(site: string): { title: string; url: string }[] {
+  return navPages.map((page) => ({ title: page.title, url: `${site}${page.path}` }));
+}
+
+const siteUrl = normaliseSiteUrl(process.env.SITE_URL);
 
 const PHONE = "555-0142";
 const EMERGENCY_PHONE = "555-0143";
-const AFTER_EXAMINATION = "The price is confirmed after an examination.";
+const AFTER_EXAMINATION = "after an examination";
 
 /** Wren Street Dental is a fictional practice. Every detail here is invented for the demo. */
 export const business: BusinessContent = {
@@ -53,23 +72,28 @@ export const business: BusinessContent = {
     },
     {
       name: "White fillings",
-      summary: `Tooth coloured fillings that repair small and medium cavities. ${AFTER_EXAMINATION}`,
+      summary: "Tooth coloured fillings that repair small and medium cavities.",
+      price: AFTER_EXAMINATION,
     },
     {
       name: "Crowns",
-      summary: `A custom cap that covers and protects a weakened tooth. ${AFTER_EXAMINATION}`,
+      summary: "A custom cap that covers and protects a weakened tooth.",
+      price: AFTER_EXAMINATION,
     },
     {
       name: "Root canal treatment",
-      summary: `Treatment to clean the inside of an infected tooth so it can be kept. ${AFTER_EXAMINATION}`,
+      summary: "Treatment to clean the inside of an infected tooth so it can be kept.",
+      price: AFTER_EXAMINATION,
     },
     {
       name: "Tooth whitening",
-      summary: `A professional whitening plan supervised by the dentist. ${AFTER_EXAMINATION}`,
+      summary: "A professional whitening plan supervised by the dentist.",
+      price: AFTER_EXAMINATION,
     },
     {
       name: "Clear aligners",
-      summary: `Removable clear trays that gently move teeth into a new position. ${AFTER_EXAMINATION}`,
+      summary: "Removable clear trays that gently move teeth into a new position.",
+      price: AFTER_EXAMINATION,
     },
   ],
   pricingNote:
@@ -159,12 +183,7 @@ export const business: BusinessContent = {
         "Yes. There is step-free access from the street and from the rear car park, and every treatment room is on the ground floor.",
     },
   ],
-  pages: [
-    { title: "Home", url: `${siteUrl}/` },
-    { title: "Treatments and fees", url: `${siteUrl}/treatments` },
-    { title: "Contact", url: `${siteUrl}/contact` },
-    { title: "Privacy", url: `${siteUrl}/privacy` },
-  ],
+  pages: buildPages(siteUrl),
 };
 
 /** Three short points for the home page. */

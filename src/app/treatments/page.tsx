@@ -26,7 +26,7 @@ export default function Treatments() {
               <tr key={service.name}>
                 <th scope="row">{service.name}</th>
                 <td>{service.summary}</td>
-                <td className="fee">{service.price ?? "After an examination"}</td>
+                <td className="fee">{service.price}</td>
               </tr>
             ))}
           </tbody>

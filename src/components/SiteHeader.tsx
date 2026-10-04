@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { business } from "@/content/business";
+import { business, navPages } from "@/content/business";
 
 export function SiteHeader() {
   return (
@@ -10,9 +10,9 @@ export function SiteHeader() {
         </Link>
         <nav aria-label="Main">
           <ul className="site-nav">
-            {business.pages.map((page) => (
-              <li key={page.url}>
-                <Link href={new URL(page.url).pathname}>{page.title}</Link>
+            {navPages.map((page) => (
+              <li key={page.path}>
+                <Link href={page.path}>{page.title}</Link>
               </li>
             ))}
           </ul>

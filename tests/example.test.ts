@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSystemPrompt, toPublicConfig } from "@/chat";
 import { chatConfig } from "@/chat.config";
-import { business } from "@/content/business";
+import { business, buildPages, navPages, normaliseSiteUrl } from "@/content/business";
 
 const PUBLISHED_PRICES = ["from $65", "from $45", "from $80", "from $25 each", "from $95"] as const;
 
@@ -17,19 +17,21 @@ describe("example practice system prompt", () => {
     }
   });
 
-  it("gives every priced service its price in the prompt", () => {
-    const priced = business.services.filter((service) => service.price !== undefined);
-    expect(priced.length).toBe(PUBLISHED_PRICES.length);
-    for (const service of priced) {
+  it("lists every service price, as written, in the prompt", () => {
+    for (const service of business.services) {
+      expect(service.price).toBeDefined();
       expect(prompt).toContain(`${service.name}: ${service.summary} Price: ${service.price}.`);
     }
   });
 
-  it("states that the remaining treatments are priced after an examination", () => {
-    const unpriced = business.services.filter((service) => service.price === undefined);
+  it("prices the remaining treatments after an examination, stated once", () => {
+    const unpriced = business.services.filter(
+      (service) => !PUBLISHED_PRICES.some((p) => p === service.price),
+    );
     expect(unpriced.length).toBeGreaterThanOrEqual(5);
     for (const service of unpriced) {
-      expect(service.summary.toLowerCase()).toContain("after an examination");
+      expect(service.price).toBe("after an examination");
+      expect(service.summary.toLowerCase()).not.toContain("after an examination");
     }
   });
 
@@ -73,5 +75,36 @@ describe("example practice public config", () => {
     expect(publicConfig.leadMode).toBe("optional");
     expect(publicConfig.privacyUrl).toBe("/privacy");
     expect(publicConfig.demoNotice).toContain("This is a demo.");
+  });
+});
+
+describe("example practice navigation and pages", () => {
+  it("has nav paths that each start with a single slash", () => {
+    expect(navPages.length).toBeGreaterThanOrEqual(4);
+    for (const page of navPages) {
+      expect(page.path).toMatch(/^\/(?!\/)/);
+    }
+  });
+
+  it("normalises a site address with trailing slashes", () => {
+    expect(normaliseSiteUrl("https://example.com/")).toBe("https://example.com");
+    expect(normaliseSiteUrl("  https://example.com//  ")).toBe("https://example.com");
+    expect(normaliseSiteUrl("")).toBe("http://localhost:3000");
+    expect(normaliseSiteUrl(undefined)).toBe("http://localhost:3000");
+  });
+
+  it("builds page addresses with no double slash after the origin", () => {
+    for (const raw of ["https://example.com", "https://example.com/", "https://example.com///"]) {
+      const pages = buildPages(normaliseSiteUrl(raw));
+      expect(pages).toHaveLength(navPages.length);
+      for (const page of pages) {
+        expect(page.url.slice("https://".length)).not.toContain("//");
+        expect(new URL(page.url).host).toBe("example.com");
+      }
+    }
+  });
+
+  it("uses the same pages in the business content", () => {
+    expect(business.pages.map((page) => page.title)).toEqual(navPages.map((page) => page.title));
   });
 });
