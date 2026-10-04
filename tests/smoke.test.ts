@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "..", "package.json"), "utf8")) as {
+const pkg = JSON.parse(
+  readFileSync(path.resolve(import.meta.dirname, "..", "package.json"), "utf8"),
+) as {
   version: string;
   dependencies: Record<string, string>;
 };
