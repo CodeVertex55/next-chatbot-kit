@@ -1,8 +1,13 @@
-import { createAnthropicClient, type ChatModelClient, type ReplyStream } from "../anthropic";
+import {
+  classifyModelError,
+  createAnthropicClient,
+  type ChatModelClient,
+  type ModelErrorInfo,
+  type ReplyStream,
+} from "../anthropic";
 import { DailyBudget, parseDailyLimit } from "../budget";
 import type { ChatConfig } from "../config";
 import type { BusinessContent } from "../content";
-import { describeError } from "../errors";
 import {
   checkOrigin,
   clientIp,
@@ -22,6 +27,8 @@ export interface ChatHandlerDeps {
   config: ChatConfig;
   env?: Record<string, string | undefined>;
   createClient?: (apiKey: string) => ChatModelClient;
+  /** Names a failed model call for the log. Defaults to the SDK classifier. */
+  classifyError?: (error: unknown) => ModelErrorInfo;
   store?: RateLimitStore;
   budget?: DailyBudget;
   now?: () => number;
@@ -45,15 +52,11 @@ function textResponse(body: BodyInit, mode: "holding" | "live"): Response {
   });
 }
 
-function errorLine(error: unknown): string {
-  const { type, status } = describeError(error);
-  return `chat error type=${type} status=${status}`;
-}
-
 export function createChatHandler(deps: ChatHandlerDeps): (request: Request) => Promise<Response> {
   const { content, config } = deps;
   const env = deps.env ?? process.env;
   const createClient = deps.createClient ?? createAnthropicClient;
+  const classifyError = deps.classifyError ?? classifyModelError;
   const store = deps.store ?? new MemoryRateLimitStore();
   const budget = deps.budget ?? new DailyBudget(parseDailyLimit(env.CHAT_DAILY_LIMIT));
   const now = deps.now ?? Date.now;
@@ -61,6 +64,11 @@ export function createChatHandler(deps: ChatHandlerDeps): (request: Request) => 
   const { limits } = config;
   const system = buildSystemPrompt(content, config);
   const encoder = new TextEncoder();
+
+  function errorLine(error: unknown): string {
+    const { kind, status } = classifyError(error);
+    return `chat error kind=${kind} status=${status ?? "none"}`;
+  }
 
   function liveResponse(reply: ReplyStream, signal: AbortSignal): Response {
     // The handler reads the outcome itself. This stops an early failure from

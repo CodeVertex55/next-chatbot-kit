@@ -252,7 +252,7 @@ If a model id rejects the effort setting, every call to it fails, and the visito
 
 For prices, see [Anthropic pricing](https://www.anthropic.com/pricing). They change, so they are not copied here. The system prompt is sent with a cache marker, so repeated requests can reuse it.
 
-Each model call times out after 60 seconds and is retried at most once.
+A model call that has not started to answer within 60 seconds is abandoned, and it is retried at most once. A reply that stalls after it has started is ended when the visitor closes the chat or the platform's function time limit is reached.
 
 Whichever model you choose, run `npm run check:rules` after you change it.
 
@@ -269,7 +269,7 @@ If the model call fails part way, the visitor gets the text that arrived plus a 
 
 ## Privacy
 
-- The server does not store or log what visitors type, what the assistant replies, lead contact details or IP addresses. The log lines it writes hold the model name, token counts and stop reason, or the class name and numeric status of an error (never its message), or the name of a notifier that failed.
+- The server does not store or log what visitors type, what the assistant replies, lead contact details or IP addresses. The log lines it writes hold the model name, token counts and stop reason, or a fixed kind (`timeout`, `connection`, `aborted`, `api` or `other`) and numeric status for a failed model call (never its message), or the name and numeric status of a notifier that failed.
 - Recent messages of the conversation are sent to Anthropic to write each reply. Anthropic's terms and privacy policy apply to that data.
 - The visitor's address is used in memory as a rate-limit key and is not written to disk or logged.
 - Lead details go only to the notifiers you configure. Your email provider or webhook receiver then holds them under your own policies.

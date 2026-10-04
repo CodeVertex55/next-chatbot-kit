@@ -78,6 +78,31 @@ function toReplyStream(stream: SdkStream | BetaSdkStream): ReplyStream {
   return { textChunks: textOf(stream), done };
 }
 
+export interface ModelErrorInfo {
+  kind: "timeout" | "connection" | "aborted" | "api" | "other";
+  /** The HTTP status of an API error, otherwise null. */
+  status: number | null;
+}
+
+/**
+ * Names a failure from the SDK by class, not by name: bundlers rename classes, so
+ * a name in a production build can be a single letter. The message is never read,
+ * because it can quote request text. The timeout class extends the connection
+ * class, so it has to be checked first.
+ */
+export function classifyModelError(error: unknown): ModelErrorInfo {
+  if (error instanceof Anthropic.APIConnectionTimeoutError) {
+    return { kind: "timeout", status: null };
+  }
+  if (error instanceof Anthropic.APIConnectionError) return { kind: "connection", status: null };
+  if (error instanceof Anthropic.APIUserAbortError) return { kind: "aborted", status: null };
+  if (error instanceof Anthropic.APIError) {
+    const { status } = error;
+    return { kind: "api", status: typeof status === "number" ? status : null };
+  }
+  return { kind: "other", status: null };
+}
+
 /** A request that has not finished after this long is abandoned. */
 const REQUEST_TIMEOUT_MS = 60_000;
 /** One retry covers a brief network fault without doubling the wait on a real outage. */

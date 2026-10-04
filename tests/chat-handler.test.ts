@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ChatModelClient, ReplyOutcome, ReplyRequest } from "@/chat/anthropic";
+import type { ChatModelClient, ModelErrorInfo, ReplyOutcome, ReplyRequest } from "@/chat/anthropic";
 import { DailyBudget } from "@/chat/budget";
 import { createChatHandler, type ChatHandlerDeps } from "@/chat/handlers/chat";
 import { buildSystemPrompt } from "@/chat/knowledge";
@@ -418,52 +418,43 @@ describe("logging", () => {
     expect(logs.join("\n")).not.toContain("203.0.113.9");
   });
 
-  it("logs the error type and status, never the message", async () => {
-    // The SDK's error classes all keep the name "Error" and carry a numeric status.
-    class RateLimitError extends Error {
-      status = 429;
-      constructor() {
-        super(`failed for ${SECRET_TEXT}`);
-      }
-    }
-    const error = new RateLimitError();
-    expect(error.name).toBe("Error");
+  it("logs the kind and status from the classifier, never the message", async () => {
+    const error = new Error(`failed for ${SECRET_TEXT}`);
+    const classifyError = vi.fn((): ModelErrorInfo => ({ kind: "api", status: 429 }));
     const client = fakeClient({ chunks: [], error: { after: 0, value: error } });
-    const { handler, logs } = setup({}, client);
+    const { handler, logs } = setup({ classifyError }, client);
     await (await handler(makeRequest())).text();
-    expect(logs).toEqual(["chat error type=RateLimitError status=429"]);
+    expect(classifyError).toHaveBeenCalledWith(error);
+    expect(logs).toEqual(["chat error kind=api status=429"]);
     expect(logs.join("\n")).not.toContain(SECRET_TEXT);
   });
 
-  it("logs status=none when the error has no numeric status", async () => {
-    class ConnectionError extends Error {
-      status = "unavailable";
-    }
-    const client = fakeClient({ chunks: [], error: { after: 0, value: new ConnectionError("x") } });
-    const { handler, logs } = setup({}, client);
+  it("logs status=none when the classifier has no status", async () => {
+    const classifyError = (): ModelErrorInfo => ({ kind: "timeout", status: null });
+    const client = fakeClient({ chunks: [], error: { after: 0, value: new Error("x") } });
+    const { handler, logs } = setup({ classifyError }, client);
     await (await handler(makeRequest())).text();
-    expect(logs).toEqual(["chat error type=ConnectionError status=none"]);
-  });
-
-  it("logs type=unknown for a thrown value that is not an object", async () => {
-    const client = fakeClient({ chunks: [], error: { after: 0, value: "plain text" } });
-    const { handler, logs } = setup({}, client);
-    await (await handler(makeRequest())).text();
-    expect(logs).toEqual(["chat error type=unknown status=none"]);
+    expect(logs).toEqual(["chat error kind=timeout status=none"]);
   });
 
   it("logs a synchronous client failure the same way", async () => {
-    class SetupError extends Error {
-      status = 500;
-    }
+    const classifyError = (): ModelErrorInfo => ({ kind: "connection", status: null });
     const client: ChatModelClient = {
       stream() {
-        throw new SetupError(SECRET_TEXT);
+        throw new Error(SECRET_TEXT);
       },
     };
-    const { handler, logs } = setup({}, client);
+    const { handler, logs } = setup({ classifyError }, client);
     await handler(makeRequest());
-    expect(logs).toEqual(["chat error type=SetupError status=500"]);
+    expect(logs).toEqual(["chat error kind=connection status=none"]);
+    expect(logs.join("\n")).not.toContain(SECRET_TEXT);
+  });
+
+  it("uses the SDK classifier by default, which calls a plain error other", async () => {
+    const client = fakeClient({ chunks: [], error: { after: 0, value: new Error("plain") } });
+    const { handler, logs } = setup({}, client);
+    await (await handler(makeRequest())).text();
+    expect(logs).toEqual(["chat error kind=other status=none"]);
   });
 
   it("defaults to console.log", async () => {
