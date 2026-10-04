@@ -18,5 +18,14 @@ export default defineConfig({
         classNameStrategy: "non-scoped",
       },
     },
+    coverage: {
+      provider: "v8",
+      include: ["src/chat/**"],
+      exclude: ["**/*.css"],
+      reporter: ["text"],
+      thresholds: {
+        lines: 90,
+      },
+    },
   },
 });
