@@ -33,20 +33,25 @@ function isChatMessage(value: unknown): value is ChatMessage {
   return (role === "user" || role === "assistant") && typeof content === "string";
 }
 
-/** True when the turns start with a user message and the roles alternate. */
-function alternates(messages: ChatMessage[]): boolean {
-  return messages.every(
-    (message, index) => message.role === (index % 2 === 0 ? "user" : "assistant"),
-  );
-}
-
-/** The saved conversation, or an empty one when it is missing or invalid. */
+/**
+ * The saved conversation, or an empty one when it is missing or invalid. It must
+ * be non-empty and start with a user message. Consecutive user messages are kept
+ * because a failed send leaves its question in the transcript; toHistory fixes
+ * the roles before anything is posted.
+ */
 function restore(): ChatMessage[] {
   const raw = readStored("session", KEYS.conversation);
   if (raw === null) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.every(isChatMessage) && alternates(parsed)) return parsed;
+    if (
+      Array.isArray(parsed) &&
+      parsed.length > 0 &&
+      parsed.every(isChatMessage) &&
+      parsed[0]?.role === "user"
+    ) {
+      return parsed;
+    }
   } catch {
     // Invalid JSON is ignored.
   }

@@ -322,27 +322,58 @@ describe("useChat", () => {
     expect(sentBody().messages[1]?.content).toHaveLength(4000);
   });
 
-  it("ignores a stored conversation whose roles do not alternate", () => {
-    for (const saved of [
-      [
-        { role: "user", content: "a" },
-        { role: "user", content: "b" },
-      ],
-      [
+  it("ignores a stored conversation that starts with an assistant message", () => {
+    sessionStorage.setItem(
+      KEYS.conversation,
+      JSON.stringify([
         { role: "assistant", content: "a" },
         { role: "user", content: "b" },
-      ],
-      [
-        { role: "user", content: "a" },
-        { role: "assistant", content: "b" },
-        { role: "assistant", content: "c" },
-      ],
-    ]) {
-      sessionStorage.setItem(KEYS.conversation, JSON.stringify(saved));
-      const { result, unmount } = setup();
-      expect(result.current.messages).toEqual([]);
-      unmount();
-    }
+      ]),
+    );
+    const { result } = setup();
+    expect(result.current.messages).toEqual([]);
+  });
+
+  it("ignores an empty stored conversation", () => {
+    sessionStorage.setItem(KEYS.conversation, "[]");
+    const { result } = setup();
+    expect(result.current.messages).toEqual([]);
+  });
+
+  it("keeps a stored transcript that has consecutive user messages", () => {
+    const saved = [
+      { role: "user", content: "a" },
+      { role: "user", content: "b" },
+      { role: "assistant", content: "c" },
+    ];
+    sessionStorage.setItem(KEYS.conversation, JSON.stringify(saved));
+    const { result } = setup();
+    expect(result.current.messages).toEqual(saved);
+  });
+
+  it("restores the full transcript after a failed send that was retried", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(500, {}));
+    fetchMock.mockResolvedValueOnce(textResponse(["Answer"]));
+    fetchMock.mockResolvedValueOnce(textResponse(["More"]));
+    const first = setup();
+    await act(() => first.result.current.send("Lost"));
+    await act(() => first.result.current.send("Retry"));
+    const transcript = [
+      { role: "user", content: "Lost" },
+      { role: "user", content: "Retry" },
+      { role: "assistant", content: "Answer" },
+    ];
+    expect(first.result.current.messages).toEqual(transcript);
+    first.unmount();
+
+    const second = setup();
+    expect(second.result.current.messages).toEqual(transcript);
+    await act(() => second.result.current.send("Next"));
+    expect(sentBody(2).messages).toEqual([
+      { role: "user", content: "Retry" },
+      { role: "assistant", content: "Answer" },
+      { role: "user", content: "Next" },
+    ]);
   });
 
   it("treats a 200 response with no text as a network error", async () => {
