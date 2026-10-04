@@ -290,4 +290,76 @@ describe("useChat", () => {
     await act(() => result.current.send("Retry"));
     expect(sentBody(1).messages).toEqual([{ role: "user", content: "Retry" }]);
   });
+
+  it("caps assistant turns in the posted history at the server limit", async () => {
+    fetchMock.mockResolvedValueOnce(textResponse(["x".repeat(5000)]));
+    fetchMock.mockResolvedValueOnce(textResponse(["Short"]));
+    const { result } = setup(100);
+    await act(() => result.current.send("First"));
+    expect(result.current.messages[1]?.content).toHaveLength(5000);
+    await act(() => result.current.send("Second"));
+
+    const posted = sentBody(1).messages;
+    expect(posted).toHaveLength(3);
+    posted.forEach((message, index) => {
+      expect(message.role).toBe(index % 2 === 0 ? "user" : "assistant");
+      expect(message.content.length).toBeLessThanOrEqual(message.role === "user" ? 100 : 4000);
+    });
+    expect(posted[1]?.content).toHaveLength(4000);
+  });
+
+  it("caps a long reply that was restored from sessionStorage", async () => {
+    sessionStorage.setItem(
+      KEYS.conversation,
+      JSON.stringify([
+        { role: "user", content: "Earlier" },
+        { role: "assistant", content: "y".repeat(6000) },
+      ]),
+    );
+    fetchMock.mockResolvedValue(textResponse(["Ok"]));
+    const { result } = setup();
+    await act(() => result.current.send("Next"));
+    expect(sentBody().messages[1]?.content).toHaveLength(4000);
+  });
+
+  it("ignores a stored conversation whose roles do not alternate", () => {
+    for (const saved of [
+      [
+        { role: "user", content: "a" },
+        { role: "user", content: "b" },
+      ],
+      [
+        { role: "assistant", content: "a" },
+        { role: "user", content: "b" },
+      ],
+      [
+        { role: "user", content: "a" },
+        { role: "assistant", content: "b" },
+        { role: "assistant", content: "c" },
+      ],
+    ]) {
+      sessionStorage.setItem(KEYS.conversation, JSON.stringify(saved));
+      const { result, unmount } = setup();
+      expect(result.current.messages).toEqual([]);
+      unmount();
+    }
+  });
+
+  it("treats a 200 response with no text as a network error", async () => {
+    fetchMock.mockResolvedValue(textResponse([]));
+    const { result } = setup();
+    await act(() => result.current.send("Hi"));
+    expect(result.current.error).toBe("network");
+    expect(result.current.status).toBe("idle");
+    expect(result.current.messages).toEqual([{ role: "user", content: "Hi" }]);
+    expect(sessionStorage.getItem(KEYS.conversation)).toBeNull();
+  });
+
+  it("treats a 200 response with only whitespace as a network error", async () => {
+    fetchMock.mockResolvedValue(textResponse(["  ", " ", "   "]));
+    const { result } = setup();
+    await act(() => result.current.send("Hi"));
+    expect(result.current.error).toBe("network");
+    expect(result.current.messages).toEqual([{ role: "user", content: "Hi" }]);
+  });
 });

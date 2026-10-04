@@ -20,10 +20,24 @@ export interface UseChat {
   stop(): void;
 }
 
+/**
+ * The longest assistant message the chat route accepts. Keep in step with
+ * MAX_ASSISTANT_CHARS in the server guard. It is not imported, so no server code
+ * reaches the client bundle.
+ */
+const MAX_ASSISTANT_CHARS = 4000;
+
 function isChatMessage(value: unknown): value is ChatMessage {
   if (typeof value !== "object" || value === null) return false;
   const { role, content } = value as Record<string, unknown>;
   return (role === "user" || role === "assistant") && typeof content === "string";
+}
+
+/** True when the turns start with a user message and the roles alternate. */
+function alternates(messages: ChatMessage[]): boolean {
+  return messages.every(
+    (message, index) => message.role === (index % 2 === 0 ? "user" : "assistant"),
+  );
 }
 
 /** The saved conversation, or an empty one when it is missing or invalid. */
@@ -32,7 +46,7 @@ function restore(): ChatMessage[] {
   if (raw === null) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.every(isChatMessage)) return parsed;
+    if (Array.isArray(parsed) && parsed.every(isChatMessage) && alternates(parsed)) return parsed;
   } catch {
     // Invalid JSON is ignored.
   }
@@ -40,16 +54,21 @@ function restore(): ChatMessage[] {
 }
 
 /**
- * The turns to send: no empty replies, and when a question never got an answer
- * the newer question replaces it so the roles keep alternating.
+ * The turns to send: no empty replies, replies cut to the server limit, and when
+ * a question never got an answer the newer question replaces it so the roles keep
+ * alternating.
  */
 function toHistory(messages: ChatMessage[]): ChatMessage[] {
   const history: ChatMessage[] = [];
   for (const message of messages) {
     if (message.content.trim() === "") continue;
+    const turn =
+      message.role === "assistant" && message.content.length > MAX_ASSISTANT_CHARS
+        ? { ...message, content: message.content.slice(0, MAX_ASSISTANT_CHARS) }
+        : message;
     const last = history[history.length - 1];
-    if (last !== undefined && last.role === message.role) history[history.length - 1] = message;
-    else history.push(message);
+    if (last !== undefined && last.role === turn.role) history[history.length - 1] = turn;
+    else history.push(turn);
   }
   return history;
 }
@@ -87,7 +106,7 @@ export function useChat({ endpoint, maxMessageChars }: UseChatOptions): UseChat 
 
   const dropEmptyReply = useCallback(() => {
     const last = messagesRef.current[messagesRef.current.length - 1];
-    if (last !== undefined && last.role === "assistant" && last.content === "") {
+    if (last !== undefined && last.role === "assistant" && last.content.trim() === "") {
       commit(messagesRef.current.slice(0, -1));
     }
   }, [commit]);
@@ -138,6 +157,13 @@ export function useChat({ endpoint, maxMessageChars }: UseChatOptions): UseChat 
         }
         const rest = decoder.decode();
         if (rest !== "") appendToReply(rest);
+
+        // A reply with no text is a failure, unless the visitor stopped it.
+        const reply = messagesRef.current[messagesRef.current.length - 1];
+        if (reply !== undefined && reply.content.trim() === "") {
+          if (!controller.signal.aborted) setError("network");
+          dropEmptyReply();
+        }
       } catch {
         if (!controller.signal.aborted) setError("network");
         dropEmptyReply();
@@ -146,7 +172,7 @@ export function useChat({ endpoint, maxMessageChars }: UseChatOptions): UseChat 
         streamingRef.current = false;
         setStatus("idle");
         const last = messagesRef.current[messagesRef.current.length - 1];
-        if (last !== undefined && last.role === "assistant" && last.content !== "") {
+        if (last !== undefined && last.role === "assistant" && last.content.trim() !== "") {
           writeStored("session", KEYS.conversation, JSON.stringify(messagesRef.current));
         }
       }

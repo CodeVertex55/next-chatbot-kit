@@ -36,7 +36,8 @@ export function MessageList({ messages, status, strings, linkOptions }: MessageL
     if (element) element.scrollTop = element.scrollHeight;
   }, [messages, status]);
 
-  const waiting = status === "streaming" && lastReply(messages) === "" && messages.length > 0;
+  const waiting =
+    status === "streaming" && lastReply(messages).trim() === "" && messages.length > 0;
   const lastIndex = messages.length - 1;
 
   return (
@@ -49,7 +50,7 @@ export function MessageList({ messages, status, strings, linkOptions }: MessageL
             </div>
           );
         }
-        if (message.content === "") {
+        if (message.content.trim() === "") {
           if (!(waiting && index === lastIndex)) return null;
           return (
             <div className={`${styles.message} ${styles.assistant}`} key={index}>
