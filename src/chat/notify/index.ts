@@ -8,6 +8,7 @@ import { createWebhookNotifier } from "./webhook";
 export { createConsoleNotifier } from "./console";
 export { createResendNotifier } from "./resend";
 export { createWebhookNotifier } from "./webhook";
+export { NotifyError } from "./types";
 export type { FetchLike, Lead, LeadNotifier } from "./types";
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
@@ -16,7 +17,7 @@ function filled(value: string | undefined): string {
   return value?.trim() ?? "";
 }
 
-function acceptableWebhookUrl(value: string): boolean {
+function acceptableWebhookUrl(value: string, production: boolean): boolean {
   let url: URL;
   try {
     url = new URL(value);
@@ -24,7 +25,7 @@ function acceptableWebhookUrl(value: string): boolean {
     return false;
   }
   if (url.protocol === "https:") return true;
-  return url.protocol === "http:" && LOCAL_HOSTS.includes(url.hostname);
+  return !production && url.protocol === "http:" && LOCAL_HOSTS.includes(url.hostname);
 }
 
 /** Builds the notifiers the environment asks for. Falls back to the console notifier. */
@@ -60,7 +61,7 @@ export function notifiersFromEnv(
 
   const webhookUrl = filled(env.LEAD_WEBHOOK_URL);
   if (webhookUrl !== "") {
-    if (acceptableWebhookUrl(webhookUrl)) {
+    if (acceptableWebhookUrl(webhookUrl, env.NODE_ENV === "production")) {
       notifiers.push(
         createWebhookNotifier({
           url: webhookUrl,

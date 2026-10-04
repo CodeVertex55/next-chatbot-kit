@@ -14,7 +14,11 @@ const MIN_DIGITS = 7;
 const EMAIL_MAX = 254;
 const PAGE_MAX = 300;
 
-const CONTROL = /[\u0000-\u001f\u007f]/;
+const LOCAL_MAX = 64;
+const LABEL_MAX = 63;
+
+/** C0 and C1 controls, the delete character, and the two Unicode line separators. */
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 const PHONE_SHAPE = /^\+?[0-9().-]+$/;
 
 const MESSAGES = {
@@ -60,14 +64,50 @@ function validPhone(text: string | null): text is string {
   );
 }
 
-/** A linear-time check: one at sign, a local part, and a domain with an inner dot. */
+function isLetterOrDigit(code: number): boolean {
+  return (
+    (code >= 48 && code <= 57) || // 0 to 9
+    (code >= 65 && code <= 90) || // A to Z
+    (code >= 97 && code <= 122) // a to z
+  );
+}
+
+/** One to 64 characters of letters, digits and . _ % + -, with no leading, trailing or doubled dot. */
+function validLocalPart(local: string): boolean {
+  if (local.length < 1 || local.length > LOCAL_MAX) return false;
+  if (local.startsWith(".") || local.endsWith(".") || local.includes("..")) return false;
+  for (let i = 0; i < local.length; i += 1) {
+    const code = local.charCodeAt(i);
+    if (!isLetterOrDigit(code) && !".-_%+".includes(local.charAt(i))) return false;
+  }
+  return true;
+}
+
+/** One to 63 characters of letters, digits and hyphens, not starting or ending with a hyphen. */
+function validLabel(label: string): boolean {
+  if (label.length < 1 || label.length > LABEL_MAX) return false;
+  if (label.startsWith("-") || label.endsWith("-")) return false;
+  for (let i = 0; i < label.length; i += 1) {
+    if (!isLetterOrDigit(label.charCodeAt(i)) && label.charAt(i) !== "-") return false;
+  }
+  return true;
+}
+
+/**
+ * A linear-time check with no backtracking. One at sign, a plain local part and a
+ * domain of at least two valid labels. It is deliberately stricter than the
+ * standard, so every accepted address is safe to place in a reply-to header.
+ */
 function validEmail(text: string | null): text is string {
-  if (text === null || text.length > EMAIL_MAX || text.includes(" ")) return false;
-  const parts = text.split("@");
-  if (parts.length !== 2) return false;
-  const [local, domain] = parts;
-  if (local === undefined || domain === undefined || local === "") return false;
-  return domain.includes(".") && !domain.startsWith(".") && !domain.endsWith(".");
+  if (text === null || text.length > EMAIL_MAX) return false;
+  const at = text.indexOf("@");
+  if (at === -1 || at !== text.lastIndexOf("@")) return false;
+  const labels = text.slice(at + 1).split(".");
+  return (
+    validLocalPart(text.slice(0, at)) &&
+    labels.length >= 2 &&
+    labels.every((label) => validLabel(label))
+  );
 }
 
 /** Checks the callback form fields. Error text never echoes the input. */

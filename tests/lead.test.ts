@@ -109,6 +109,27 @@ describe("validateLead email", () => {
       "maya@.example.com",
       "maya@example.com.",
       "maya@@example.com",
+      "a@b..c",
+      "a..b@c.de",
+      ".a@c.de",
+      "a.@c.de",
+      "a,b@c.de",
+      "a<b>@c.de",
+      "a;b@c.de",
+      "a b@c.de",
+      "a(b)@c.de",
+      'a"b@c.de',
+      "a@-b.de",
+      "a@b-.de",
+      "a@b.-de",
+      "a@b.de-",
+      "a@b..de",
+      "a@b_c.de",
+      "a@b c.de",
+      "a@[127.0.0.1]",
+      `${"a".repeat(65)}@b.co`,
+      `a@${"b".repeat(64)}.co`,
+      `a@b.${"c".repeat(64)}`,
       "a@b@example.com",
       "ma ya@example.com",
       "maya@exa mple.com",
@@ -120,9 +141,26 @@ describe("validateLead email", () => {
   });
 
   it("accepts an address of exactly 254 characters", () => {
-    const email = `${"a".repeat(64)}@${"b".repeat(186)}.co`;
+    const email = `${"a".repeat(64)}@${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(61)}`;
     expect(email).toHaveLength(254);
     expect(validateLead({ ...valid, email }).ok).toBe(true);
+  });
+
+  it("accepts ordinary and plus-tagged addresses", () => {
+    const good = [
+      "maya@example.com",
+      "maya.ortega@example.co.uk",
+      "maya+bakery@example.com",
+      "m_o%x-1@sub.example.org",
+      "a@b.co",
+      `${"a".repeat(64)}@b.co`,
+      `a@${"b".repeat(63)}.co`,
+      "a@b-c.de",
+      "a@1.2",
+    ];
+    for (const email of good) {
+      expect(validateLead({ ...valid, email }).ok, email).toBe(true);
+    }
   });
 
   it("validates long hostile input quickly", () => {
@@ -160,6 +198,11 @@ describe("validateLead control characters", () => {
     String.fromCharCode(13),
     String.fromCharCode(27),
     String.fromCharCode(127),
+    String.fromCharCode(0x80),
+    String.fromCharCode(0x85),
+    String.fromCharCode(0x9f),
+    String.fromCharCode(0x2028),
+    String.fromCharCode(0x2029),
   ];
 
   it("rejects control characters inside any field", () => {

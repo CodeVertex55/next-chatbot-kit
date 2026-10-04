@@ -232,7 +232,7 @@ describe("success", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
     expect(good.received).toHaveLength(1);
-    expect(logs).toEqual(["lead notifier failed name=webhook"]);
+    expect(logs).toEqual(["lead notifier failed name=webhook status=none"]);
   });
 
   it("still answers ok when a notifier throws before returning a promise", async () => {
@@ -245,7 +245,38 @@ describe("success", () => {
     const { handler, logs } = setup({ notifiers: [throwing] });
     const res = await handler(makeRequest());
     expect(res.status).toBe(200);
-    expect(logs).toEqual(["lead notifier failed name=sync"]);
+    expect(logs).toEqual(["lead notifier failed name=sync status=none"]);
+  });
+
+  it("logs the numeric status that a failed notifier carries", async () => {
+    class DeliveryError extends Error {
+      status = 422;
+    }
+    const failing: LeadNotifier = {
+      name: "resend",
+      notify: () => Promise.reject(new DeliveryError("maya@example.com rejected")),
+    };
+    const { handler, logs } = setup({ notifiers: [failing] });
+    const res = await handler(makeRequest());
+    expect(res.status).toBe(200);
+    expect(logs).toEqual(["lead notifier failed name=resend status=422"]);
+  });
+
+  it("logs the status of the error a real notifier throws", async () => {
+    const fetchImpl = () => Promise.resolve(new Response("{}", { status: 500 }));
+    const { createResendNotifier } = await import("@/chat/notify");
+    const notifier = createResendNotifier({
+      apiKey: "k",
+      to: "owner@testloaf.example",
+      from: "chat@testloaf.example",
+      businessName: "Test Loaf Bakery",
+      siteUrl: "https://testloaf.example",
+      accent: "#0f766e",
+      fetchImpl,
+    });
+    const { handler, logs } = setup({ notifiers: [notifier] });
+    await handler(makeRequest());
+    expect(logs).toEqual(["lead notifier failed name=resend status=500"]);
   });
 
   it("never writes the lead or the address to the log", async () => {

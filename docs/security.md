@@ -69,14 +69,14 @@ What the kit does:
 
 - A hidden `company` field is a honeypot. A request that fills it gets a success reply and nothing is delivered.
 - The lead route has its own rate limit, five submissions per window by default.
-- Fields are checked for length and shape. A name of 2 to 80 characters, a phone number of 7 to 20 characters with at least seven digits, a plausible email address, and a page path of up to 300 characters. Text with control characters is refused.
-- If email or the webhook is down, the visitor still sees success and the failure is logged by notifier name only.
+- Fields are checked for length and shape. A name of 2 to 80 characters, a phone number of 7 to 20 characters with at least seven digits, a strictly shaped email address, and a page path of up to 300 characters. The email check accepts only letters, digits and `. _ % + -` in the local part and plain hostname labels in the domain, so what passes is safe to use as a reply-to address. Text with control characters, including line separators, is refused.
+- If email or the webhook is down, the visitor still sees success and the failure is logged by notifier name and numeric status only.
 
 What it does not do:
 
 - There is no CAPTCHA. A human or a patient script can still submit junk that passes the checks.
 - The callback form is a request for a call back. The chat does not check that a lead was submitted, so the form is not a gate in the security sense, even in `required` mode.
-- A failed delivery is not retried and not queued. The lead is lost. Watch your logs for `lead notifier failed`.
+- A failed delivery is not queued, and apart from one Resend case it is not retried. The lead is lost. Watch your logs for `lead notifier failed`. The line gives the notifier name and the HTTP status, or `none`, which is enough to tell a rejected key from a timeout. The Resend case is a second try without the reply-to address after a 4xx answer other than 401, 403 or 429.
 
 ### Email and header injection
 
@@ -97,7 +97,7 @@ What it does not do:
 
 ## Privacy
 
-The server does not store or log visitor message text, lead contact details or IP addresses. The only things it logs are the model name, token counts and stop reason of a reply, the class name and numeric status of an error (never its message), and the name of a notifier that failed. Messages are sent to Anthropic to write each reply. Lead details go to the email or webhook you set up.
+The server does not store or log visitor message text, lead contact details or IP addresses. The only things it logs are the model name, token counts and stop reason of a reply, the class name and numeric status of an error (never its message), and the name and numeric status of a notifier that failed. Messages are sent to Anthropic to write each reply. Lead details go to the email or webhook you set up.
 
 See the Privacy section of the [README](../README.md#privacy).
 

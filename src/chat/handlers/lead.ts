@@ -1,5 +1,6 @@
 import type { ChatConfig } from "../config";
 import type { BusinessContent } from "../content";
+import { describeError } from "../errors";
 import { checkOrigin, clientIp, jsonError, parseAllowedOrigins, readJsonBody } from "../guard";
 import { validateLead } from "../lead";
 import { notifiersFromEnv } from "../notify";
@@ -73,7 +74,8 @@ export function createLeadHandler(deps: LeadHandlerDeps): (request: Request) => 
     );
     results.forEach((result, index) => {
       if (result.status === "rejected") {
-        log(`lead notifier failed name=${notifiers[index]?.name ?? "unknown"}`);
+        const { status } = describeError(result.reason);
+        log(`lead notifier failed name=${notifiers[index]?.name ?? "unknown"} status=${status}`);
       }
     });
 

@@ -1,8 +1,13 @@
 import { renderCallbackEmail } from "../email/template";
-import type { FetchLike, Lead, LeadNotifier } from "./types";
+import { NotifyError, type FetchLike, type Lead, type LeadNotifier } from "./types";
 
 const ENDPOINT = "https://api.resend.com/emails";
 const TIMEOUT_MS = 10000;
+
+/** A 4xx answer that points at the request itself, not the key, the account or the rate. */
+function retriesWithoutReplyTo(status: number): boolean {
+  return status >= 400 && status < 500 && ![401, 403, 429].includes(status);
+}
 
 export interface ResendOptions {
   apiKey: string;
@@ -22,23 +27,30 @@ export function createResendNotifier(options: ResendOptions): LeadNotifier {
     name: "resend",
     async notify(lead: Lead): Promise<void> {
       const email = renderCallbackEmail(lead, { businessName, siteUrl, accent });
-      const response = await send(ENDPOINT, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from,
-          to: [to],
-          reply_to: lead.email,
-          subject: email.subject,
-          html: email.html,
-          text: email.text,
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (!response.ok) throw new Error(`resend responded ${response.status}`);
+      const post = (replyTo: string | null): Promise<Response> =>
+        send(ENDPOINT, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from,
+            to: [to],
+            ...(replyTo === null ? {} : { reply_to: replyTo }),
+            subject: email.subject,
+            html: email.html,
+            text: email.text,
+          }),
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+
+      let response = await post(lead.email);
+      // A rejected request is most often a reply-to address the service will not
+      // take. Send the lead once more without it so the visitor's details still arrive.
+      if (retriesWithoutReplyTo(response.status)) response = await post(null);
+      if (!response.ok)
+        throw new NotifyError(`resend responded ${response.status}`, response.status);
     },
   };
 }

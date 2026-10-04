@@ -31,6 +31,23 @@ function fakeFetch(status = 200, responseBody = "{}") {
   return { calls, fetchImpl };
 }
 
+function sequenceFetch(statuses: number[]) {
+  const calls: Call[] = [];
+  const fetchImpl: FetchLike = (input, init) => {
+    calls.push({ input, init });
+    const status = statuses[Math.min(calls.length - 1, statuses.length - 1)] ?? 200;
+    return Promise.resolve(new Response("{}", { status }));
+  };
+  return { calls, fetchImpl };
+}
+
+async function failureOf(promise: Promise<unknown>): Promise<unknown> {
+  return promise.then(
+    () => null,
+    (e: unknown) => e,
+  );
+}
+
 function bodyOf(call: Call | undefined): Record<string, unknown> {
   expect(typeof call?.init.body).toBe("string");
   return JSON.parse(call?.init.body as string) as Record<string, unknown>;
@@ -90,6 +107,48 @@ describe("createResendNotifier", () => {
     await createResendNotifier({ ...base, fetchImpl }).notify(lead);
     expect(calls[0]?.init.signal).toBeInstanceOf(AbortSignal);
   });
+
+  it("carries the numeric status on the error it throws", async () => {
+    const { fetchImpl } = fakeFetch(500);
+    const error = await failureOf(createResendNotifier({ ...base, fetchImpl }).notify(lead));
+    expect((error as { status?: unknown }).status).toBe(500);
+  });
+
+  it("retries once without reply_to when the first answer is a rejected request", async () => {
+    for (const status of [400, 404, 422]) {
+      const { calls, fetchImpl } = sequenceFetch([status, 200]);
+      await createResendNotifier({ ...base, fetchImpl }).notify(lead);
+      expect(calls, String(status)).toHaveLength(2);
+      const first = bodyOf(calls[0]);
+      const second = bodyOf(calls[1]);
+      expect(first.reply_to).toBe(lead.email);
+      expect(second).not.toHaveProperty("reply_to");
+      expect({ ...first, reply_to: undefined }).toEqual({ ...second, reply_to: undefined });
+    }
+  });
+
+  it("throws when the retry also fails, with the status of the retry", async () => {
+    const { calls, fetchImpl } = sequenceFetch([422, 400]);
+    const error = await failureOf(createResendNotifier({ ...base, fetchImpl }).notify(lead));
+    expect(calls).toHaveLength(2);
+    expect((error as Error).message).toBe("resend responded 400");
+    expect((error as { status?: unknown }).status).toBe(400);
+  });
+
+  it("does not retry for 401, 403, 429 or a server error", async () => {
+    for (const status of [401, 403, 429, 500, 503]) {
+      const { calls, fetchImpl } = sequenceFetch([status, 200]);
+      const error = await failureOf(createResendNotifier({ ...base, fetchImpl }).notify(lead));
+      expect(calls, String(status)).toHaveLength(1);
+      expect((error as { status?: unknown }).status).toBe(status);
+    }
+  });
+
+  it("sends the retry with its own timeout signal", async () => {
+    const { calls, fetchImpl } = sequenceFetch([422, 200]);
+    await createResendNotifier({ ...base, fetchImpl }).notify(lead);
+    expect(calls[1]?.init.signal).toBeInstanceOf(AbortSignal);
+  });
 });
 
 describe("createWebhookNotifier", () => {
@@ -139,6 +198,7 @@ describe("createWebhookNotifier", () => {
         (e: unknown) => e,
       );
     expect((error as Error).message).toBe("webhook responded 500");
+    expect((error as { status?: unknown }).status).toBe(500);
   });
 
   it("lets a network failure reject", async () => {
@@ -199,6 +259,26 @@ describe("notifiersFromEnv", () => {
   it("allows http only for localhost and 127.0.0.1", () => {
     expect(build({ LEAD_WEBHOOK_URL: "http://localhost:3000/hook" }).names).toEqual(["webhook"]);
     expect(build({ LEAD_WEBHOOK_URL: "http://127.0.0.1:8080/hook" }).names).toEqual(["webhook"]);
+  });
+
+  it("allows a local http url outside production", () => {
+    for (const NODE_ENV of ["development", "test", undefined]) {
+      const env = { LEAD_WEBHOOK_URL: "http://localhost:3000/hook", NODE_ENV };
+      expect(build(env).names, String(NODE_ENV)).toEqual(["webhook"]);
+    }
+  });
+
+  it("ignores a local http url in production and logs why", () => {
+    for (const LEAD_WEBHOOK_URL of ["http://localhost:3000/hook", "http://127.0.0.1:8080/hook"]) {
+      const { names, lines } = build({ LEAD_WEBHOOK_URL, NODE_ENV: "production" });
+      expect(names).toEqual(["console"]);
+      expect(lines).toEqual(["lead webhook url ignored (must be https)"]);
+    }
+  });
+
+  it("still accepts an https url in production", () => {
+    const env = { LEAD_WEBHOOK_URL: "https://hooks.example.org/x", NODE_ENV: "production" };
+    expect(build(env).names).toEqual(["webhook"]);
   });
 
   it("rejects an http url that is not local and logs why", () => {

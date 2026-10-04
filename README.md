@@ -212,10 +212,10 @@ Every variable is optional. With none set, the app builds and runs, the chat giv
 
 ## Lead delivery
 
-When a visitor submits the callback form, the lead handler checks the origin, applies the rate limit, validates the fields and sends the lead to every notifier that is set up. Notifiers run side by side. If one fails, the failure is logged by name only and the visitor still sees success.
+When a visitor submits the callback form, the lead handler checks the origin, applies the rate limit, validates the fields and sends the lead to every notifier that is set up. Notifiers run side by side. If one fails, the failure is logged as `lead notifier failed name=<name> status=<number>` and the visitor still sees success. The status is the HTTP status the service returned, or `none` when there was no response, such as a timeout. The log never holds the lead or the response text.
 
-- **Email through Resend.** Set `RESEND_API_KEY`, `LEAD_EMAIL_TO` and `LEAD_EMAIL_FROM`. The email has call, text and email buttons, and the reply-to address is the visitor's email.
-- **Webhook.** Set `LEAD_WEBHOOK_URL` to an `https` address. Plain `http` is accepted only for `localhost` and `127.0.0.1`. The kit posts this JSON and sends no signature or secret:
+- **Email through Resend.** Set `RESEND_API_KEY`, `LEAD_EMAIL_TO` and `LEAD_EMAIL_FROM`. The email has call, text and email buttons, and the reply-to address is the visitor's email. If Resend rejects the request with a 4xx status other than 401, 403 or 429, the kit sends it once more without the reply-to address, so the lead still arrives.
+- **Webhook.** Set `LEAD_WEBHOOK_URL` to an `https` address. Plain `http` is accepted only for `localhost` and `127.0.0.1`, and only when `NODE_ENV` is not `production`. Any other address is ignored and the handler logs `lead webhook url ignored (must be https)`. The kit posts this JSON and sends no signature or secret:
 
   ```json
   {
@@ -228,11 +228,11 @@ When a visitor submits the callback form, the lead handler checks the origin, ap
   }
   ```
 
-- **Console.** If neither of the above is set, the handler writes `lead received (no notifier configured)` and nothing else. The lead details are not kept anywhere, so set up email or a webhook before you go live.
+- **Console.** If neither of the above is set up, the console notifier is used. That includes a `LEAD_WEBHOOK_URL` that was ignored for not being `https`. The handler writes `lead received (no notifier configured)` and nothing else. The lead details are not kept anywhere, so set up email or a webhook before you go live.
 
-Each call to Resend or the webhook times out after ten seconds. There are no retries and no queue.
+Each call to Resend or the webhook times out after ten seconds. There is no queue. The only retry is the Resend one described above.
 
-The form checks a name of 2 to 80 characters, a phone number of 7 to 20 characters with at least seven digits, and an email address. Fields with control characters are refused. A hidden `company` field acts as a honeypot: if a bot fills it in, the request returns success and nothing is sent.
+The form checks a name of 2 to 80 characters, a phone number of 7 to 20 characters with at least seven digits, and an email address. The address check is deliberately strict: a local part of up to 64 letters, digits and the characters `. _ % + -` with no leading, trailing or doubled dot, and a domain of at least two labels of letters, digits and hyphens. Fields with control characters, including line separators, are refused. A hidden `company` field acts as a honeypot: if a bot fills it in, the request returns success and nothing is sent.
 
 ## Model choice
 
