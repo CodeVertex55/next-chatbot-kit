@@ -13,7 +13,7 @@ What is in the box:
 - A callback form with three modes: required, optional or off. Leads go to email through Resend, to a webhook, or both.
 - A system prompt builder. You write a content file about the business and a short config. The kit turns them into a prompt with rules that keep the assistant truthful.
 - Guard rails: origin check, rate limits, an optional daily call limit, message validation and a safe fallback when the model fails.
-- A demo site for a fictional dental practice, Wren Street Dental in Marlow Bay.
+- A demo site for a fictional dental practice, Quillmere Dental in Marlow Bay.
 
 Demo: https://next-chatbot-kit.vercel.app
 

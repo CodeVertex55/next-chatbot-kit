@@ -329,7 +329,7 @@ describe("injection", () => {
 describe("off-topic", () => {
   it("passes for a short refusal", () => {
     expect(
-      verdict("off-topic", "I can only help with questions about Wren Street Dental."),
+      verdict("off-topic", "I can only help with questions about Quillmere Dental."),
     ).toBeNull();
   });
 

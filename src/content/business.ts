@@ -25,16 +25,16 @@ const PHONE = "555-0142";
 const EMERGENCY_PHONE = "555-0143";
 const AFTER_EXAMINATION = "after an examination";
 
-/** Wren Street Dental is a fictional practice. Every detail here is invented for the demo. */
+/** Quillmere Dental is a fictional practice. Every detail here is invented for the demo. */
 export const business: BusinessContent = {
-  name: "Wren Street Dental",
+  name: "Quillmere Dental",
   description: "a friendly general dental practice in Marlow Bay",
   siteUrl,
   phone: PHONE,
   phoneHref: "tel:5550142",
   emergencyPhone: EMERGENCY_PHONE,
-  email: "hello@wrenstreetdental.example",
-  address: "12 Wren Street, Marlow Bay",
+  email: "hello@quillmeredental.example",
+  address: "12 Quillmere Lane, Marlow Bay",
   bookingUrl: `${siteUrl}/contact`,
   hours: [
     { days: "Monday to Thursday", hours: "8:30 to 17:30" },
@@ -145,7 +145,7 @@ export const business: BusinessContent = {
     {
       question: "Is there parking?",
       answer:
-        "There are two patient spaces at the rear of the building, one of them wider for wheelchair users. There is also street parking on Wren Street.",
+        "There are two patient spaces at the rear of the building, one of them wider for wheelchair users. There is also street parking on Quillmere Lane.",
     },
     {
       question: "How can I pay?",

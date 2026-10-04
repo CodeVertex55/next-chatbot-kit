@@ -45,7 +45,7 @@ The prompt rules are part of the product. If you change `src/chat/rules.ts` or t
 
 ## Examples and demo content
 
-The demo is a fictional practice, Wren Street Dental in Marlow Bay. Keep examples, tests and docs fictional. Do not put in real business names, real people, real phone numbers or addresses, or real conversations.
+The demo is a fictional practice, Quillmere Dental in Marlow Bay. Keep examples, tests and docs fictional. Do not put in real business names, real people, real phone numbers or addresses, or real conversations.
 
 ## Documentation
 
