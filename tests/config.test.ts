@@ -204,7 +204,37 @@ describe("toPublicConfig", () => {
     expect(keys).not.toContain("extraRules");
     expect(keys).not.toContain("limits");
     expect(JSON.stringify(publicConfig)).not.toContain("Never discuss allergens");
-    expect(JSON.stringify(publicConfig)).not.toContain("maxTurns");
+  });
+
+  it("lists exactly the browser-safe keys", () => {
+    expect(Object.keys(publicConfig).sort()).toEqual(
+      [
+        "accent",
+        "businessName",
+        "greeting",
+        "greetingDelayMs",
+        "leadMode",
+        "maxMessageChars",
+        "maxTurns",
+        "persona",
+        "phone",
+        "phoneHref",
+        "siteHost",
+        "strings",
+        "suggestions",
+      ].sort(),
+    );
+  });
+
+  it("sends the turn limit from the config limits", () => {
+    expect(publicConfig.maxTurns).toBe(16);
+    const config = defineChatConfig({
+      persona: { name: "Sam" },
+      greeting: "Hi",
+      topics: ["bread"],
+      limits: { maxTurns: 4 },
+    });
+    expect(toPublicConfig(config, testContent).maxTurns).toBe(4);
   });
 
   it("passes through privacy url and demo notice when set", () => {

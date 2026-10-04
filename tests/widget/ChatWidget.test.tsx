@@ -286,7 +286,7 @@ describe("lead form errors", () => {
     await user.click(launcher());
     const honeypot = screen
       .getByRole("dialog")
-      .querySelector<HTMLInputElement>('input[name="company"]');
+      .querySelector<HTMLInputElement>('input[name="chatkit-extra"]');
     expect(honeypot).not.toBeNull();
     expect(honeypot).toHaveAttribute("aria-hidden", "true");
     expect(honeypot).toHaveAttribute("tabindex", "-1");
@@ -294,17 +294,41 @@ describe("lead form errors", () => {
     expect(screen.getAllByRole("textbox")).not.toContain(honeypot);
   });
 
-  it("sends the honeypot value so the server can discard bots", async () => {
+  it("does not give the honeypot a name or id that browser autofill maps", async () => {
+    const { user } = renderWidget();
+    await user.click(launcher());
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.querySelector('input[name="company"]')).toBeNull();
+    for (const input of dialog.querySelectorAll("input")) {
+      expect(input.id.toLowerCase()).not.toContain("company");
+      expect(input.name.toLowerCase()).not.toContain("company");
+    }
+  });
+
+  it("sends the honeypot value under the company key so the server can discard bots", async () => {
     const { user } = renderWidget();
     await user.click(launcher());
     const honeypot = screen
       .getByRole("dialog")
-      .querySelector<HTMLInputElement>('input[name="company"]')!;
+      .querySelector<HTMLInputElement>('input[name="chatkit-extra"]')!;
     await user.type(honeypot, "Acme");
     await fillLead(user);
     await screen.findByRole("textbox", { name: "Your message" });
     const body = JSON.parse((leadCalls()[0]![1] as RequestInit).body as string);
     expect(body.company).toBe("Acme");
+    expect(Object.keys(body).sort()).toEqual(["company", "email", "name", "page", "phone"]);
+  });
+
+  it("marks the three visible fields as required for assistive technology", async () => {
+    const { user } = renderWidget();
+    await user.click(launcher());
+    for (const label of ["Name", "Phone", "Email"]) {
+      expect(screen.getByLabelText(label)).toHaveAttribute("aria-required", "true");
+    }
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.querySelector('input[name="chatkit-extra"]')).not.toHaveAttribute(
+      "aria-required",
+    );
   });
 });
 

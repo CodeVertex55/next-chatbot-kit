@@ -11,6 +11,13 @@ type FieldErrors = Partial<Record<Field, string>>;
 
 const FIELDS: Field[] = ["name", "phone", "email"];
 
+/**
+ * The honeypot input's DOM name. It is not a word that browser autofill maps to a
+ * saved value, so a real visitor's autofill leaves it empty. The value is still
+ * posted under the key `company`, which is what the server reads.
+ */
+const HONEYPOT_NAME = "chatkit-extra";
+
 export interface LeadFormProps {
   config: PublicChatConfig;
   endpoint: string;
@@ -129,6 +136,7 @@ export function LeadForm({ config, endpoint, onDone, onSkip }: LeadFormProps) {
               name={field}
               type={inputProps[field].type}
               autoComplete={inputProps[field].autoComplete}
+              aria-required="true"
               value={values[field]}
               onChange={(event) => update(field, event.target.value)}
               aria-invalid={message === undefined ? undefined : true}
@@ -145,7 +153,8 @@ export function LeadForm({ config, endpoint, onDone, onSkip }: LeadFormProps) {
 
       <div className={styles.honeypot} aria-hidden="true">
         <input
-          name="company"
+          id={`${baseId}-chatkit-extra`}
+          name={HONEYPOT_NAME}
           type="text"
           tabIndex={-1}
           autoComplete="off"

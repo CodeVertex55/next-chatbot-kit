@@ -30,7 +30,11 @@ export function ChatWidget({
   const [callbackDone, setCallbackDone] = useState(false);
   const [greetingReady, setGreetingReady] = useState(false);
   const [greetingGone, setGreetingGone] = useState(false);
-  const chat = useChat({ endpoint: chatEndpoint, maxMessageChars: config.maxMessageChars });
+  const chat = useChat({
+    endpoint: chatEndpoint,
+    maxMessageChars: config.maxMessageChars,
+    maxTurns: config.maxTurns,
+  });
   const launcherRef = useRef<HTMLButtonElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const panelId = useId();

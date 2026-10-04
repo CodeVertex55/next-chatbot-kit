@@ -201,6 +201,7 @@ export interface PublicChatConfig {
   phoneHref: string;
   siteHost: string;
   maxMessageChars: number;
+  maxTurns: number;
 }
 
 /** The part of the config that is safe to send to the browser. */
@@ -218,6 +219,7 @@ export function toPublicConfig(config: ChatConfig, content: BusinessContent): Pu
     phoneHref: content.phoneHref,
     siteHost: new URL(content.siteUrl).host,
     maxMessageChars: config.limits.maxMessageChars,
+    maxTurns: config.limits.maxTurns,
   };
   if (config.privacyUrl !== undefined) result.privacyUrl = config.privacyUrl;
   if (config.demoNotice !== undefined) result.demoNotice = config.demoNotice;

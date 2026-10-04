@@ -54,7 +54,7 @@ What the kit does:
 
 - It checks that the body has a message list, that each item has a role of `user` or `assistant` and some text, that the roles alternate starting with a visitor message, and that the last one is from the visitor.
 - It limits a visitor message to `limits.maxMessageChars` and an assistant message to 4000 characters.
-- It keeps only the most recent `limits.maxTurns` exchanges and drops the rest.
+- It keeps only the most recent `limits.maxTurns` exchanges and drops the rest. The widget does the same before it posts, and it also drops the oldest pairs if the body would pass 60000 bytes, so a long chat in one tab does not run into the 64 KiB limit.
 - Error text never repeats what was sent.
 
 What it does not do:
@@ -67,7 +67,7 @@ Bots fill in the callback form to flood the inbox, or to send harmful text throu
 
 What the kit does:
 
-- A hidden `company` field is a honeypot. A request that fills it gets a success reply and nothing is delivered.
+- A hidden field is a honeypot. Its input is named `chatkit-extra`, a name that browser autofill does not map, and its value is posted under the key `company`. A request that fills it gets a success reply and nothing is delivered.
 - The lead route has its own rate limit, five submissions per window by default.
 - Fields are checked for length and shape. A name of 2 to 80 characters, a phone number of 7 to 20 characters with at least seven digits, a strictly shaped email address, and a page path of up to 300 characters. The email check accepts only letters, digits and `. _ % + -` in the local part and plain hostname labels in the domain, so what passes is safe to use as a reply-to address. Text with control characters, including line separators, is refused.
 - If email or the webhook is down, the visitor still sees success and the failure is logged by notifier name and numeric status only.

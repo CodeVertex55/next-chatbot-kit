@@ -20,8 +20,14 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-function setup(maxMessageChars = 100) {
-  return renderHook(() => useChat({ endpoint: "/api/chat", maxMessageChars }));
+function setup(maxMessageChars = 100, maxTurns?: number) {
+  return renderHook(() =>
+    useChat({
+      endpoint: "/api/chat",
+      maxMessageChars,
+      ...(maxTurns === undefined ? {} : { maxTurns }),
+    }),
+  );
 }
 
 function sentBody(call = 0) {
@@ -114,6 +120,94 @@ describe("useChat", () => {
     const { result } = setup(5);
     await act(() => result.current.send("abcdefghij"));
     expect(sentBody().messages[0]?.content).toBe("abcde");
+  });
+
+  describe("long conversations", () => {
+    function seed(pairs: number, assistantText: string, userText = "question") {
+      const saved: { role: string; content: string }[] = [];
+      for (let i = 0; i < pairs; i += 1) {
+        saved.push({ role: "user", content: `${userText} ${i}` });
+        saved.push({ role: "assistant", content: `${assistantText} ${i}` });
+      }
+      sessionStorage.setItem(KEYS.conversation, JSON.stringify(saved));
+      return saved;
+    }
+
+    it("sends only the last 2 * maxTurns - 1 messages, ending with the new question", async () => {
+      fetchMock.mockResolvedValue(textResponse(["ok"]));
+      seed(3, "answer");
+      const { result } = setup(100, 2);
+      await act(() => result.current.send("newest"));
+      expect(sentBody().messages).toEqual([
+        { role: "user", content: "question 2" },
+        { role: "assistant", content: "answer 2" },
+        { role: "user", content: "newest" },
+      ]);
+    });
+
+    it("keeps the whole visible transcript when it trims what it sends", async () => {
+      fetchMock.mockResolvedValue(textResponse(["ok"]));
+      seed(3, "answer");
+      const { result } = setup(100, 2);
+      await act(() => result.current.send("newest"));
+      expect(result.current.messages).toHaveLength(8);
+      expect(result.current.messages[0]?.content).toBe("question 0");
+    });
+
+    it("sends everything when the history is within the turn limit", async () => {
+      fetchMock.mockResolvedValue(textResponse(["ok"]));
+      seed(1, "answer");
+      const { result } = setup(100, 2);
+      await act(() => result.current.send("newest"));
+      expect(sentBody().messages).toHaveLength(3);
+    });
+
+    it("starts the trimmed history on a user turn", async () => {
+      fetchMock.mockResolvedValue(textResponse(["ok"]));
+      seed(4, "answer");
+      const { result } = setup(100, 3);
+      await act(() => result.current.send("newest"));
+      const sent = sentBody().messages;
+      expect(sent).toHaveLength(5);
+      expect(sent[0]?.role).toBe("user");
+      expect(sent.at(-1)).toEqual({ role: "user", content: "newest" });
+      sent.forEach((message, index) => {
+        expect(message.role).toBe(index % 2 === 0 ? "user" : "assistant");
+      });
+    });
+
+    it("defaults to the server default of 16 turns", async () => {
+      fetchMock.mockResolvedValue(textResponse(["ok"]));
+      seed(20, "a");
+      const { result } = setup();
+      await act(() => result.current.send("newest"));
+      expect(sentBody().messages).toHaveLength(31);
+    });
+
+    it("drops the oldest pairs until the body is within 60000 bytes", async () => {
+      fetchMock.mockResolvedValue(textResponse(["ok"]));
+      const saved = seed(15, "\u00e9".repeat(3900), "q".repeat(1400));
+      const { result } = setup(1500, 40);
+      await act(() => result.current.send("newest"));
+
+      const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+      const bytes = new TextEncoder().encode(init.body as string).length;
+      expect(bytes).toBeLessThanOrEqual(60000);
+
+      const sent = sentBody().messages;
+      expect(sent.length).toBeLessThan(31);
+      expect(sent[0]?.role).toBe("user");
+      expect(sent.at(-1)).toEqual({ role: "user", content: "newest" });
+      expect(sent.length % 2).toBe(1);
+      // What remains is the newest part of the conversation, unchanged.
+      const dropped = 30 - (sent.length - 1);
+      expect(sent[0]?.content).toBe(saved[dropped]?.content);
+      // One pair fewer dropped would not have fitted.
+      const oneMorePair = [...saved.slice(dropped - 2), { role: "user", content: "newest" }];
+      expect(
+        new TextEncoder().encode(JSON.stringify({ messages: oneMorePair })).length,
+      ).toBeGreaterThan(60000);
+    });
   });
 
   it("sets rate-limited on 429 and removes the placeholder", async () => {

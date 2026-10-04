@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DEFAULT_LIMITS } from "../config";
 import type { ChatMessage } from "../guard";
 import { KEYS, readStored, writeStored } from "./storage";
 
@@ -10,6 +11,8 @@ export type ChatError = "rate-limited" | "network" | null;
 export interface UseChatOptions {
   endpoint: string;
   maxMessageChars: number;
+  /** The server's `limits.maxTurns`. Defaults to the kit default. */
+  maxTurns?: number;
 }
 
 export interface UseChat {
@@ -26,6 +29,19 @@ export interface UseChat {
  * reaches the client bundle.
  */
 const MAX_ASSISTANT_CHARS = 4000;
+
+/**
+ * The most bytes of JSON the widget posts. The server refuses bodies over 64 KiB
+ * (65536 bytes), so this leaves room for the field names and any difference in
+ * how the two sides count.
+ */
+const MAX_BODY_BYTES = 60000;
+
+const encoder = new TextEncoder();
+
+function bodySize(messages: ChatMessage[]): number {
+  return encoder.encode(JSON.stringify({ messages })).length;
+}
 
 function isChatMessage(value: unknown): value is ChatMessage {
   if (typeof value !== "object" || value === null) return false;
@@ -59,12 +75,16 @@ function restore(): ChatMessage[] {
 }
 
 /**
- * The turns to send: no empty replies, replies cut to the server limit, and when
- * a question never got an answer the newer question replaces it so the roles keep
- * alternating.
+ * The turns to send. Empty replies are left out, replies are cut to the server
+ * limit, and when a question never got an answer the newer question replaces it
+ * so the roles keep alternating. Then the history is trimmed so the server never
+ * has to refuse it: only the last 2 * maxTurns - 1 messages are kept, so the new
+ * question is the last one and the first is a visitor turn, and while the body
+ * would still be too large the oldest question and answer pair is dropped. The
+ * transcript the visitor sees is not touched.
  */
-function toHistory(messages: ChatMessage[]): ChatMessage[] {
-  const history: ChatMessage[] = [];
+function toHistory(messages: ChatMessage[], maxTurns: number): ChatMessage[] {
+  let history: ChatMessage[] = [];
   for (const message of messages) {
     if (message.content.trim() === "") continue;
     const turn =
@@ -75,10 +95,19 @@ function toHistory(messages: ChatMessage[]): ChatMessage[] {
     if (last !== undefined && last.role === turn.role) history[history.length - 1] = turn;
     else history.push(turn);
   }
+
+  const keep = 2 * maxTurns - 1;
+  if (history.length > keep) history = history.slice(-keep);
+  while (history.length > 1 && history[0]?.role !== "user") history = history.slice(1);
+  while (history.length > 2 && bodySize(history) > MAX_BODY_BYTES) history = history.slice(2);
   return history;
 }
 
-export function useChat({ endpoint, maxMessageChars }: UseChatOptions): UseChat {
+export function useChat({
+  endpoint,
+  maxMessageChars,
+  maxTurns = DEFAULT_LIMITS.maxTurns,
+}: UseChatOptions): UseChat {
   const [messages, setMessages] = useState<ChatMessage[]>(restore);
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [error, setError] = useState<ChatError>(null);
@@ -121,7 +150,7 @@ export function useChat({ endpoint, maxMessageChars }: UseChatOptions): UseChat 
       const content = text.trim().slice(0, maxMessageChars);
       if (content === "" || streamingRef.current) return;
 
-      const history = toHistory([...messagesRef.current, { role: "user", content }]);
+      const history = toHistory([...messagesRef.current, { role: "user", content }], maxTurns);
       commit([
         ...messagesRef.current,
         { role: "user", content },
@@ -182,7 +211,7 @@ export function useChat({ endpoint, maxMessageChars }: UseChatOptions): UseChat 
         }
       }
     },
-    [endpoint, maxMessageChars, commit, appendToReply, dropEmptyReply],
+    [endpoint, maxMessageChars, maxTurns, commit, appendToReply, dropEmptyReply],
   );
 
   const stop = useCallback(() => {
