@@ -24,21 +24,23 @@ Vercel sets the `x-forwarded-for` header. The kit reads the visitor's address fr
 
 Changes to environment variables apply to new deployments. Redeploy after you change one.
 
+`SITE_URL` has to be set to the public address before the build runs. The layout bakes the site host into the widget at build time and the prompt uses the address for the links the assistant gives, so a build made without it points those links at `http://localhost:3000`. Changing it later needs a new build.
+
 ## Environment variables
 
 None are required for the app to build and run. Without a key it uses [holding mode](../README.md#holding-mode).
 
-| Variable               | Set it to                                                                               |
-| ---------------------- | --------------------------------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`    | Your Anthropic API key. Keep it as a secret and never put it in the repository.         |
-| `CHAT_MODEL`           | A model id. Leave empty for the default. See [Model choice](../README.md#model-choice). |
-| `CHAT_DAILY_LIMIT`     | A whole number. See below.                                                              |
-| `CHAT_ALLOWED_ORIGINS` | Extra hosts that may call the routes. See below.                                        |
-| `SITE_URL`             | The public address of your site, for example `https://example.com`.                     |
-| `RESEND_API_KEY`       | Your Resend API key, to email leads.                                                    |
-| `LEAD_EMAIL_TO`        | The address that receives lead emails.                                                  |
-| `LEAD_EMAIL_FROM`      | A sender address on a domain verified with Resend.                                      |
-| `LEAD_WEBHOOK_URL`     | An `https` address that receives each lead as JSON.                                     |
+| Variable               | Set it to                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`    | Your Anthropic API key. Keep it as a secret and never put it in the repository.           |
+| `CHAT_MODEL`           | A model id. Leave empty for the default. See [Model choice](../README.md#model-choice).   |
+| `CHAT_DAILY_LIMIT`     | A whole number, where 0 means no model calls. See below.                                  |
+| `CHAT_ALLOWED_ORIGINS` | Extra hosts that may call the routes. See below.                                          |
+| `SITE_URL`             | The public address of your site, for example `https://example.com`. Needed at build time. |
+| `RESEND_API_KEY`       | Your Resend API key, to email leads.                                                      |
+| `LEAD_EMAIL_TO`        | The address that receives lead emails.                                                    |
+| `LEAD_EMAIL_FROM`      | A sender address on a domain verified with Resend.                                        |
+| `LEAD_WEBHOOK_URL`     | An `https` address that receives each lead as JSON.                                       |
 
 Set up at least one of email or webhook before launch. With neither, a lead is dropped and only a one-line notice is logged.
 
@@ -50,13 +52,17 @@ The count is kept in memory by each server instance. On a host that runs several
 
 ### CHAT_ALLOWED_ORIGINS
 
-The routes accept a request only when its `Origin` header matches the site's own host or a host in this list. A request with no `Origin` header is refused.
+The routes accept a request only when the host in its `Origin` header is the host the request was sent to, or a host in this list. The kit compares against the `Host` header of the request, or the host of the request URL when there is no `Host` header. It does not use `SITE_URL`. A request with no `Origin` header is refused.
 
-Use the list when the site is reached on more than one host. For example, if the site answers on both `example.com` and `www.example.com`, the site's own host covers one and the list must name the other:
+The widget calls relative paths, so a page calling its own site always passes, on every host the site answers on. You do not need the list for `example.com` and `www.example.com`.
+
+Use the list in two cases. One is a front end on a different domain that calls the routes. If the pages are on `shop.example.org` and the routes are on `api.example.com`, set this on the routes site:
 
 ```bash
-CHAT_ALLOWED_ORIGINS=www.example.com
+CHAT_ALLOWED_ORIGINS=shop.example.org
 ```
+
+The other is a proxy that rewrites the `Host` header, so the host the app sees differs from the one the browser used. Then name the public host.
 
 Separate several entries with commas. Each entry can be a host or a full address. Only the host part is used.
 

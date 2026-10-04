@@ -17,6 +17,8 @@ What is in the box:
 
 Demo: https://next-chatbot-kit.vercel.app
 
+Quillmere Dental is a fictional business. Any resemblance to a real practice is coincidental.
+
 The assistant can be wrong. It is not a substitute for professional advice. See [Limits](#limits) before you put it on a real site.
 
 ## Quick start
@@ -77,7 +79,7 @@ These steps assume a Next.js app that uses the App Router and has the `@/*` path
    export const POST = createLeadHandler({ content: business, config: chatConfig });
    ```
 
-3. **Write the content file** at `src/content/business.ts`. This is everything the assistant is allowed to know. Anything not in it, the assistant will not state as fact.
+3. **Write the content file** at `src/content/business.ts`. This is everything the assistant is allowed to know. The assistant is told not to state anything that is not in it.
 
    ```ts
    import type { BusinessContent } from "@/chat";
@@ -132,7 +134,7 @@ These steps assume a Next.js app that uses the App Router and has the `@/*` path
    <ChatWidget config={toPublicConfig(chatConfig, business)} />;
    ```
 
-   `toPublicConfig` sends only the browser-safe part of the config. Your `extraRules`, the other limits and the rest of the content file stay on the server. The widget posts to `/api/chat` and `/api/chat/lead`. Pass `chatEndpoint` or `leadEndpoint` to use other paths.
+   `toPublicConfig` sends only the browser-safe part of the config. Of the limits it sends only `maxMessageChars` and `maxTurns`. Your `extraRules`, the other limits and the rest of the content file stay on the server. The widget posts to `/api/chat` and `/api/chat/lead`. Pass `chatEndpoint` or `leadEndpoint` to use other paths.
 
 6. **Set the environment variables** in `.env.local` for development and in your host for production. See [Environment variables](#environment-variables) and [Deploy](docs/deploy.md).
 
@@ -196,19 +198,19 @@ The default `leadSensitiveNote` mentions medical details, so change it if your b
 
 Every variable is optional. With none set, the app builds and runs, the chat gives the holding reply, and leads go to the console.
 
-| Variable               | Purpose                                                                                                        |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`    | Your Anthropic API key. Without it the chat uses [holding mode](#holding-mode).                                |
-| `CHAT_MODEL`           | The model id for replies. Empty means the kit default. See [Model choice](#model-choice).                      |
-| `CHAT_DAILY_LIMIT`     | The most model calls allowed per UTC day, per server instance. Empty means no limit. `0` means no model calls. |
-| `CHAT_ALLOWED_ORIGINS` | Extra hosts, separated by commas, that may call the routes. The site's own host is always allowed.             |
-| `SITE_URL`             | The public address of the site, such as `https://example.com`. The demo defaults to `http://localhost:3000`.   |
-| `RESEND_API_KEY`       | Resend API key for emailing leads. Needs `LEAD_EMAIL_TO` and `LEAD_EMAIL_FROM` as well.                        |
-| `LEAD_EMAIL_TO`        | Where lead emails are sent.                                                                                    |
-| `LEAD_EMAIL_FROM`      | The sender address for lead emails, on a domain you have verified with Resend.                                 |
-| `LEAD_WEBHOOK_URL`     | An `https` address that receives each lead as a JSON post.                                                     |
+| Variable               | Purpose                                                                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`    | Your Anthropic API key. Without it the chat uses [holding mode](#holding-mode).                                                                                |
+| `CHAT_MODEL`           | The model id for replies. Empty means the kit default. See [Model choice](#model-choice).                                                                      |
+| `CHAT_DAILY_LIMIT`     | The most model calls allowed per UTC day, per server instance. Empty means no limit. `0` means no model calls.                                                 |
+| `CHAT_ALLOWED_ORIGINS` | Extra hosts, separated by commas, that may call the routes from another origin. A request is always allowed when its `Origin` host is the host it was sent to. |
+| `SITE_URL`             | The public address of the site, such as `https://example.com`. Set it at build time. The demo defaults to `http://localhost:3000`.                             |
+| `RESEND_API_KEY`       | Resend API key for emailing leads. Needs `LEAD_EMAIL_TO` and `LEAD_EMAIL_FROM` as well.                                                                        |
+| `LEAD_EMAIL_TO`        | Where lead emails are sent.                                                                                                                                    |
+| `LEAD_EMAIL_FROM`      | The sender address for lead emails, on a domain you have verified with Resend.                                                                                 |
+| `LEAD_WEBHOOK_URL`     | An `https` address that receives each lead as a JSON post.                                                                                                     |
 
-`SITE_URL` is read by the demo's content file, not by the kit. If you write your own content file, read it the way step 3 shows.
+`SITE_URL` is read by the demo's content file, not by the kit. If you write your own content file, read it the way step 3 shows. Set it to the public address when you build. The layout bakes the site host into the widget and the prompt uses the address for links, so a build made without it points links at `http://localhost:3000`.
 
 ## Lead delivery
 
@@ -238,7 +240,15 @@ The form checks a name of 2 to 80 characters, a phone number of 7 to 20 characte
 
 The default model is `claude-opus-5-5`, called at low effort. Replies are short, so the kit asks for low effort.
 
-For a simple FAQ site, `CHAT_MODEL=claude-haiku-4-5` is a cheaper choice. Models whose id starts with `claude-haiku` are sent without the effort setting. Any other model id you set is passed through as it is.
+For a simple FAQ site, `CHAT_MODEL=claude-haiku-4-5` is a cheaper choice. Any other model id you set is passed through as it is.
+
+What each request carries depends on the model id:
+
+- For `claude-opus-5-5`, `claude-opus-5`, `claude-sonnet-5-5` and `claude-fable-5-1`, the request also opts into Anthropic's server-side refusal fallback: a beta header plus `fallbacks: "default"`. These models get low effort as well.
+- Models whose id starts with `claude-haiku` are sent without the effort setting and without the fallback.
+- Every other model id gets low effort only.
+
+If a model id rejects the effort setting, every call to it fails, and the visitor only ever sees the fallback reply. If that happens, pick another model.
 
 For prices, see [Anthropic pricing](https://www.anthropic.com/pricing). They change, so they are not copied here. The system prompt is sent with a cache marker, so repeated requests can reuse it.
 

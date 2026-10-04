@@ -33,7 +33,7 @@ Another site's page makes a visitor's browser call your chat route, or someone s
 
 What the kit does:
 
-- Both routes require an `Origin` header that matches the site's own host or a host in `CHAT_ALLOWED_ORIGINS`. A request with no `Origin` header is refused with 403.
+- Both routes require an `Origin` header whose host is the host the request was sent to (the `Host` header, or the request URL host if there is none) or a host in `CHAT_ALLOWED_ORIGINS`. A request with no `Origin` header is refused with 403.
 - Both routes limit requests per client address in a window. The defaults are 20 chat requests and 5 callback submissions per ten minutes. Over the limit, the route returns 429 with a `Retry-After` header.
 - The request body is limited to 64 KiB. It must be JSON. The limit is enforced while the body is read, so an oversized body is cut off and refused with 413 before it is held in memory.
 - `CHAT_DAILY_LIMIT` caps the number of model calls per UTC day. Past the cap, visitors get the holding reply.
