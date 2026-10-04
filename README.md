@@ -15,7 +15,9 @@ What is in the box:
 - Guard rails: origin check, rate limits, an optional daily call limit, message validation and a safe fallback when the model fails.
 - A demo site for a fictional dental practice, Quillmere Dental in Marlow Bay.
 
-Demo: https://next-chatbot-kit.vercel.app
+Demo: https://next-chatbot-kit-phi.vercel.app
+
+![The demo site with the chat widget open, showing three suggested questions](docs/images/demo.png)
 
 Quillmere Dental is a fictional business. Any resemblance to a real practice is coincidental.
 
