@@ -6,23 +6,19 @@
  *
  * No reply text is written to disk. Only the table of results is printed.
  */
-import path from "node:path";
+import "./load-env";
 import { DEFAULT_MODEL, buildSystemPrompt, createAnthropicClient } from "@/chat";
 import { chatConfig } from "@/chat.config";
 import { createPunctuationFilter } from "../src/chat/stream";
 import { business } from "@/content/business";
-import { RULE_CASES, evaluateReply, type CaseContext, type RuleCase } from "./rules-cases";
-
-interface Result {
-  id: string;
-  failure: string | null;
-}
-
-try {
-  process.loadEnvFile(path.resolve(import.meta.dirname, "..", ".env.local"));
-} catch {
-  // There is no .env.local. The key may still be set in the environment.
-}
+import {
+  RULE_CASES,
+  containsDash,
+  evaluateReply,
+  type CaseContext,
+  type RuleCase,
+} from "./rules-cases";
+import { formatTable, formatTokens, type CaseResult, type TokenTotals } from "./rules-report";
 
 function errorLabel(error: unknown): string {
   const name = error instanceof Error && error.name !== "" ? error.name : "unknown error";
@@ -35,8 +31,8 @@ async function runCase(
   client: ReturnType<typeof createAnthropicClient>,
   model: string,
   context: CaseContext,
-  tokens: { input: number; output: number },
-): Promise<Result> {
+  tokens: TokenTotals,
+): Promise<CaseResult> {
   try {
     const stream = client.stream({
       model,
@@ -45,25 +41,24 @@ async function runCase(
       maxTokens: chatConfig.limits.maxOutputTokens,
     });
     const filter = createPunctuationFilter();
+    let raw = "";
     let reply = "";
-    for await (const chunk of stream.textChunks) reply += filter.push(chunk);
+    for await (const chunk of stream.textChunks) {
+      raw += chunk;
+      reply += filter.push(chunk);
+    }
     reply += filter.flush();
     const outcome = await stream.done;
     tokens.input += outcome.usage.input;
+    tokens.cacheRead += outcome.usage.cacheRead;
     tokens.output += outcome.usage.output;
-    return { id: rule.id, failure: evaluateReply(rule, reply.trim(), context) };
+    return {
+      id: rule.id,
+      failure: evaluateReply(rule, reply.trim(), context),
+      rawDash: containsDash(raw),
+    };
   } catch (error) {
-    return { id: rule.id, failure: `request failed (${errorLabel(error)})` };
-  }
-}
-
-function printTable(results: Result[]): void {
-  const width = Math.max(...results.map((result) => result.id.length), "case".length);
-  const line = (id: string, status: string, note: string): string =>
-    `${id.padEnd(width)}  ${status.padEnd(6)}  ${note}`.trimEnd();
-  console.log(line("case", "result", "failing check"));
-  for (const result of results) {
-    console.log(line(result.id, result.failure === null ? "pass" : "FAIL", result.failure ?? ""));
+    return { id: rule.id, failure: `request failed (${errorLabel(error)})`, rawDash: false };
   }
 }
 
@@ -81,22 +76,24 @@ async function main(): Promise<number> {
     email: business.email,
   };
   const client = createAnthropicClient(apiKey);
-  const tokens = { input: 0, output: 0 };
+  const tokens: TokenTotals = { input: 0, cacheRead: 0, output: 0 };
 
   console.log(`Checking ${RULE_CASES.length} cases with model ${model}.`);
-  const results: Result[] = [];
+  const results: CaseResult[] = [];
   for (const rule of RULE_CASES) {
     results.push(await runCase(rule, client, model, context, tokens));
   }
 
   console.log("");
-  printTable(results);
+  console.log(formatTable(results));
   const failed = results.filter((result) => result.failure !== null).length;
   console.log("");
   console.log(`${results.length - failed} of ${results.length} cases passed.`);
+  const rawDashes = results.filter((result) => result.rawDash).length;
   console.log(
-    `Tokens used: ${tokens.input + tokens.output} (${tokens.input} in, ${tokens.output} out).`,
+    `${rawDashes} of ${results.length} raw replies held a dash character. This is reported only. The filter removes them before the checks run.`,
   );
+  console.log(formatTokens(tokens));
   return failed === 0 ? 0 : 1;
 }
 

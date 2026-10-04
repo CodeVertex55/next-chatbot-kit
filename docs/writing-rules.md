@@ -63,4 +63,8 @@ The check needs `ANTHROPIC_API_KEY`. It sends twelve test questions to the real 
 
 The cases are in `scripts/rules-cases.ts`. They are written for the demo practice, so they check things like the Saturday opening hours and the `$65` examination price. When you change the content file for your own business, change the cases to match. Add a case for each rule you write: a question that should trigger the rule, and a check on the reply that fails if the rule is ignored.
 
-The check looks at strings only. It cannot tell whether a reply is kind or well put. Read a few replies yourself before you go live, and keep testing after the content changes.
+The check looks at strings only, so a failure should be read, not trusted blindly. A reply that says a time "cannot be confirmed" is not a confirmation, and `$65.00` is the same price as `$65`. The checks skip a booking word that is negated earlier in its sentence and treat a whole amount with zero cents as the same figure, but they will still get some replies wrong in both directions. Open the reply, then decide.
+
+The table also has a raw dash column. It shows whether the model wrote a dash character before the filter removed it. It is reported only and never counts as a failure, so you can see whether the model follows the rule or the filter is doing the work.
+
+The check cannot tell whether a reply is kind or well put. Read a few replies yourself before you go live, and keep testing after the content changes.

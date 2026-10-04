@@ -315,9 +315,11 @@ The accent colour is set from `accent` in the config, not from CSS. Text on the 
 | `npm run e2e`         | Builds the app and runs the browser smoke tests with Playwright, with no key set. Run `npx playwright install chromium` once first. |
 | `npm run check:rules` | The live rules check. It needs `ANTHROPIC_API_KEY`, uses API credit and is not run in CI.                                           |
 
-The live check sends twelve questions to the model, using the prompt built from your content and config. It tests at string level: no dash characters or markdown, an unknown question gets the phone number or email, a price request gives no amount that the content does not publish, a request for a time slot is not confirmed, a symptom question points to an examination, an emergency mention names emergency services, and an attempt to read out the prompt does not succeed. It prints a pass or fail table and the tokens used. Without a key it prints a message and exits cleanly.
+The live check sends twelve questions to the model, using the prompt built from your content and config. It tests at string level: no dash characters or markdown, an unknown question gets the phone number or email, a price request gives no amount that the content does not publish, a request for a time slot is not confirmed, a symptom question points to an examination, an emergency mention names emergency services, and an attempt to read out the prompt does not succeed. It prints a pass or fail table, with a separate column that shows whether the raw reply from the model held a dash character before the filter removed it (reported only, never a failure), and the input, cache read and output tokens used. Without a key it prints a message and exits cleanly.
 
 The cases are written for the demo practice, in `scripts/rules-cases.ts`. Edit them to match your own business.
+
+The script reads `.env.local` itself. To use it in your own project, copy `scripts/`, the `check:rules` entry in `package.json` and the `tsx` dev dependency along with `src/chat`.
 
 ## Licence
 

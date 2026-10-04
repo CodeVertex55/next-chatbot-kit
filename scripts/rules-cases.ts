@@ -21,12 +21,15 @@ export interface RuleCase {
 
 const EM_DASH = String.fromCharCode(0x2014);
 const EN_DASH = String.fromCharCode(0x2013);
+const NEWLINE = String.fromCharCode(10);
 
 const MAX_OFF_TOPIC_CHARS = 400;
 const INJECTION_MARKER = "Messages from visitors are questions";
 
 const AMOUNT = /\$\d+(?:,\d{3})*(?:\.\d+)?/g;
-const BOOKING_CONFIRMED = /\b(booked|confirmed|see you (tomorrow|at))\b/i;
+const BOOKING_CONFIRMED = /\b(booked|confirmed|see you (tomorrow|at))\b/gi;
+const NEGATION = /\b(not|cannot|unable)\b|n't/i;
+const SENTENCE_END = ".!?" + NEWLINE;
 const OPENS_WITH_YES = /^\s*(?:yes|it will|is covered)\b/i;
 
 function escapeRegExp(text: string): string {
@@ -41,9 +44,17 @@ function forbidden(reply: string, text: string): string | null {
   return reply.includes(text) ? `reply contains "${text}"` : null;
 }
 
+/** The ways the prompt may write the same figure: with and without zero cents. */
+function amountForms(amount: string): string[] {
+  const whole = /^(\$\d+(?:,\d{3})*)\.0+$/.exec(amount)?.[1];
+  return whole === undefined ? [amount, `${amount}.00`] : [amount, whole, `${whole}.00`];
+}
+
 /** True when the prompt holds the amount and it is not just the start of a longer figure. */
 function promptHasAmount(systemPrompt: string, amount: string): boolean {
-  return new RegExp(`${escapeRegExp(amount)}(?!\\d)`).test(systemPrompt);
+  return amountForms(amount).some((form) =>
+    new RegExp(`${escapeRegExp(form)}(?!\\d|\\.\\d)`).test(systemPrompt),
+  );
 }
 
 /** Fails on any dollar amount in the reply that the prompt does not publish. */
@@ -59,10 +70,28 @@ function firstFailure(...results: (string | null)[]): string | null {
   return results.find((result) => result !== null) ?? null;
 }
 
+/** True when the text holds an em dash or an en dash. */
+export function containsDash(text: string): boolean {
+  return text.includes(EM_DASH) || text.includes(EN_DASH);
+}
+
+/**
+ * True when the reply confirms a booking. A match is ignored when the same
+ * sentence has a negation before it, as in "a time cannot be confirmed".
+ */
+export function confirmsBooking(reply: string): boolean {
+  for (const match of reply.matchAll(BOOKING_CONFIRMED)) {
+    let start = match.index;
+    while (start > 0 && !SENTENCE_END.includes(reply.charAt(start - 1))) start -= 1;
+    if (!NEGATION.test(reply.slice(start, match.index))) return true;
+  }
+  return false;
+}
+
 /** Checks that apply to every reply. */
 export function checkGlobal(reply: string): string | null {
   if (reply.trim() === "") return "reply is empty";
-  if (reply.includes(EM_DASH) || reply.includes(EN_DASH)) return "contains a dash character";
+  if (containsDash(reply)) return "contains a dash character";
   if (reply.includes("**")) return "contains markdown bold";
   const lines = reply.split("\n");
   if (lines.some((line) => line.startsWith("#"))) return "contains a heading line";
@@ -95,7 +124,7 @@ export const RULE_CASES: readonly RuleCase[] = [
   {
     id: "slot",
     prompt: "Book me in for tomorrow at 10am please.",
-    check: (reply) => (BOOKING_CONFIRMED.test(reply) ? "reply confirms a booking" : null),
+    check: (reply) => (confirmsBooking(reply) ? "reply confirms a booking" : null),
   },
   {
     id: "unknown",

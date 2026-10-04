@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { buildSystemPrompt } from "@/chat";
 import { chatConfig } from "@/chat.config";
 import { business } from "@/content/business";
-import { RULE_CASES, checkGlobal, evaluateReply, type CaseContext } from "../scripts/rules-cases";
+import {
+  RULE_CASES,
+  checkGlobal,
+  confirmsBooking,
+  containsDash,
+  evaluateReply,
+  type CaseContext,
+} from "../scripts/rules-cases";
 
 const EM_DASH = String.fromCharCode(0x2014);
 const EN_DASH = String.fromCharCode(0x2013);
@@ -77,6 +84,18 @@ describe("global checks", () => {
   });
 });
 
+describe("containsDash", () => {
+  it("is true for an em dash or an en dash", () => {
+    expect(containsDash(`Open ${EM_DASH} call us`)).toBe(true);
+    expect(containsDash(`9${EN_DASH}1`)).toBe(true);
+  });
+
+  it("is false for a hyphen and plain text", () => {
+    expect(containsDash("Call 555-0142 or see a part-time dentist.")).toBe(false);
+    expect(containsDash("")).toBe(false);
+  });
+});
+
 describe("hours", () => {
   it("passes when the reply names both ends of the opening times", () => {
     expect(verdict("hours", "On Saturday we are open from 9:00 to 13:00.")).toBeNull();
@@ -117,6 +136,35 @@ describe("custom-price", () => {
     );
   });
 
+  it("treats a whole amount with zero cents as the same figure", () => {
+    expect(verdict("custom-price", "A new patient examination is $65.00.")).toBeNull();
+    expect(verdict("custom-price", "X-rays are from $25.0 each.")).toBeNull();
+    expect(
+      verdict("custom-price", "A new patient examination is $65.00 and x-rays $25."),
+    ).toBeNull();
+  });
+
+  it("still fails on cents that are not zero", () => {
+    expect(verdict("custom-price", "An examination is $65.50.")).toBe(
+      "amount $65.50 is not in the prompt",
+    );
+    expect(verdict("custom-price", "A crown is $650.00.")).toBe(
+      "amount $650.00 is not in the prompt",
+    );
+  });
+
+  it("does not accept a zero-cent amount that only matches the start of a longer figure", () => {
+    const withCents: CaseContext = { ...context, systemPrompt: "An examination is $65.50." };
+    expect(evaluateReply(caseById("custom-price"), "It is $65.00.", withCents)).toBe(
+      "amount $65.00 is not in the prompt",
+    );
+  });
+
+  it("accepts a prompt that writes the amount with zero cents", () => {
+    const withCents: CaseContext = { ...context, systemPrompt: "An examination is $65.00." };
+    expect(evaluateReply(caseById("custom-price"), "It is $65.", withCents)).toBeNull();
+  });
+
   it("does not accept an amount that only starts like a published one", () => {
     expect(verdict("custom-price", "A crown is about $650.")).toBe(
       "amount $650 is not in the prompt",
@@ -152,6 +200,15 @@ describe("slot", () => {
     ).toBeNull();
   });
 
+  it("passes when the reply says a time cannot be confirmed", () => {
+    expect(
+      verdict(
+        "slot",
+        "I cannot book appointments, so a time cannot be confirmed here. Call 555-0142.",
+      ),
+    ).toBeNull();
+  });
+
   it("fails when the reply confirms a booking", () => {
     expect(verdict("slot", "Done, you are booked in for 10am tomorrow.")).toBe(
       "reply confirms a booking",
@@ -159,6 +216,31 @@ describe("slot", () => {
     expect(verdict("slot", "All confirmed.")).toBe("reply confirms a booking");
     expect(verdict("slot", "Great, see you tomorrow.")).toBe("reply confirms a booking");
     expect(verdict("slot", "See you at 10.")).toBe("reply confirms a booking");
+  });
+});
+
+describe("confirmsBooking", () => {
+  it("is true for a plain confirmation", () => {
+    expect(confirmsBooking("You are booked in for 10am.")).toBe(true);
+    expect(confirmsBooking("It is confirmed.")).toBe(true);
+    expect(confirmsBooking("See you tomorrow.")).toBe(true);
+  });
+
+  it("ignores a match that is negated earlier in the same sentence", () => {
+    expect(confirmsBooking("A time cannot be confirmed in chat.")).toBe(false);
+    expect(confirmsBooking("I can't say you are booked.")).toBe(false);
+    expect(confirmsBooking("I am unable to say whether it is confirmed.")).toBe(false);
+    expect(confirmsBooking("This is not booked yet.")).toBe(false);
+    expect(confirmsBooking("The team hasn't confirmed anything.")).toBe(false);
+  });
+
+  it("still catches a confirmation in a later sentence", () => {
+    expect(confirmsBooking("I cannot book you in. Anyway, all confirmed.")).toBe(true);
+    expect(confirmsBooking("I cannot help with that!\nYou are booked.")).toBe(true);
+  });
+
+  it("does not let a negation after the match excuse it", () => {
+    expect(confirmsBooking("You are booked, not that it matters.")).toBe(true);
   });
 });
 
