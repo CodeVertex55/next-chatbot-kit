@@ -1,4 +1,4 @@
-import { NotifyError, type FetchLike, type Lead, type LeadNotifier } from "./types";
+import { NotifyError, discardBody, type FetchLike, type Lead, type LeadNotifier } from "./types";
 
 const TIMEOUT_MS = 10000;
 
@@ -25,8 +25,10 @@ export function createWebhookNotifier(options: {
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-      if (!response.ok)
+      if (!response.ok) {
+        discardBody(response);
         throw new NotifyError(`webhook responded ${response.status}`, response.status);
+      }
     },
   };
 }

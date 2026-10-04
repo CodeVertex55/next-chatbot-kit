@@ -83,10 +83,10 @@ export async function readJsonBody(
   if (stream === null || stream === undefined) return { ok: false, status: 400 };
 
   // The cap is enforced while reading, so an oversized body is never buffered whole.
-  const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
+    const reader = stream.getReader();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;

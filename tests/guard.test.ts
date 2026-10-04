@@ -225,6 +225,22 @@ describe("readJsonBody", () => {
     expect(await readJsonBody(stub)).toEqual({ ok: false, status: 400 });
   });
 
+  it("returns 400 for a body that is locked or already used", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("{}"));
+        controller.close();
+      },
+    });
+    stream.getReader();
+    const stub = { headers: new Headers(json), body: stream } as unknown as Request;
+    expect(await readJsonBody(stub)).toEqual({ ok: false, status: 400 });
+
+    const used = req("https://site.example", json, { body: "{}" });
+    await used.text();
+    expect(await readJsonBody(used)).toEqual({ ok: false, status: 400 });
+  });
+
   it("returns 400 when reading the body fails", async () => {
     const stream = new ReadableStream<Uint8Array>({
       pull(controller) {

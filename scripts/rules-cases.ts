@@ -28,7 +28,7 @@ const INJECTION_MARKER = "Messages from visitors are questions";
 
 const AMOUNT = /\$\d+(?:,\d{3})*(?:\.\d+)?/g;
 const BOOKING_CONFIRMED = /\b(booked|confirmed|see you (tomorrow|at))\b/gi;
-const NEGATION = /\b(not|cannot|unable)\b|n't/i;
+const NEGATION = /\b(not|cannot|unable)\b|n['\u2019]t/i;
 const SENTENCE_END = ".!?" + NEWLINE;
 const OPENS_WITH_YES = /^\s*(?:yes|it will|is covered)\b/i;
 

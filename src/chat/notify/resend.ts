@@ -1,5 +1,5 @@
 import { renderCallbackEmail } from "../email/template";
-import { NotifyError, type FetchLike, type Lead, type LeadNotifier } from "./types";
+import { NotifyError, discardBody, type FetchLike, type Lead, type LeadNotifier } from "./types";
 
 const ENDPOINT = "https://api.resend.com/emails";
 const TIMEOUT_MS = 10000;
@@ -48,9 +48,14 @@ export function createResendNotifier(options: ResendOptions): LeadNotifier {
       let response = await post(lead.email);
       // A rejected request is most often a reply-to address the service will not
       // take. Send the lead once more without it so the visitor's details still arrive.
-      if (retriesWithoutReplyTo(response.status)) response = await post(null);
-      if (!response.ok)
+      if (retriesWithoutReplyTo(response.status)) {
+        discardBody(response);
+        response = await post(null);
+      }
+      if (!response.ok) {
+        discardBody(response);
         throw new NotifyError(`resend responded ${response.status}`, response.status);
+      }
     },
   };
 }

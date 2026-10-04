@@ -232,6 +232,12 @@ describe("confirmsBooking", () => {
     expect(confirmsBooking("I am unable to say whether it is confirmed.")).toBe(false);
     expect(confirmsBooking("This is not booked yet.")).toBe(false);
     expect(confirmsBooking("The team hasn't confirmed anything.")).toBe(false);
+    expect(confirmsBooking("I can" + String.fromCharCode(0x2019) + "t say you are booked.")).toBe(
+      false,
+    );
+    expect(
+      confirmsBooking("The team hasn" + String.fromCharCode(0x2019) + "t confirmed anything."),
+    ).toBe(false);
   });
 
   it("still catches a confirmation in a later sentence", () => {

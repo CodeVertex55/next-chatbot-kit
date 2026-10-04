@@ -21,4 +21,9 @@ export class NotifyError extends Error {
   }
 }
 
+/** Gives up on a response body that will not be read, so the connection can be reused. */
+export function discardBody(response: Response): void {
+  response.body?.cancel().catch(() => undefined);
+}
+
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;

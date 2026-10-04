@@ -48,6 +48,28 @@ async function failureOf(promise: Promise<unknown>): Promise<unknown> {
   );
 }
 
+/** A fetch whose responses carry a body stream that records when it is cancelled. */
+function trackedFetch(statuses: number[]) {
+  const cancelled: boolean[] = [];
+  const calls: Call[] = [];
+  const fetchImpl: FetchLike = (input, init) => {
+    calls.push({ input, init });
+    const index = calls.length - 1;
+    cancelled.push(false);
+    const status = statuses[Math.min(index, statuses.length - 1)] ?? 200;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new TextEncoder().encode("detail"));
+      },
+      cancel() {
+        cancelled[index] = true;
+      },
+    });
+    return Promise.resolve(new Response(stream, { status }));
+  };
+  return { calls, cancelled, fetchImpl };
+}
+
 function bodyOf(call: Call | undefined): Record<string, unknown> {
   expect(typeof call?.init.body).toBe("string");
   return JSON.parse(call?.init.body as string) as Record<string, unknown>;
@@ -144,6 +166,20 @@ describe("createResendNotifier", () => {
     }
   });
 
+  it("cancels the body of a response it retries or throws on", async () => {
+    const retried = trackedFetch([422, 200]);
+    await createResendNotifier({ ...base, fetchImpl: retried.fetchImpl }).notify(lead);
+    expect(retried.cancelled[0]).toBe(true);
+
+    const failed = trackedFetch([500]);
+    await failureOf(createResendNotifier({ ...base, fetchImpl: failed.fetchImpl }).notify(lead));
+    expect(failed.cancelled[0]).toBe(true);
+
+    const both = trackedFetch([422, 400]);
+    await failureOf(createResendNotifier({ ...base, fetchImpl: both.fetchImpl }).notify(lead));
+    expect(both.cancelled).toEqual([true, true]);
+  });
+
   it("sends the retry with its own timeout signal", async () => {
     const { calls, fetchImpl } = sequenceFetch([422, 200]);
     await createResendNotifier({ ...base, fetchImpl }).notify(lead);
@@ -175,6 +211,12 @@ describe("createWebhookNotifier", () => {
       page: "/menu",
       receivedAt: "2026-10-04T09:30:00.000Z",
     });
+  });
+
+  it("cancels the body of a non-2xx reply", async () => {
+    const { cancelled, fetchImpl } = trackedFetch([503]);
+    await failureOf(createWebhookNotifier({ url, fetchImpl }).notify(lead));
+    expect(cancelled[0]).toBe(true);
   });
 
   it("uses a ten second timeout signal", async () => {
