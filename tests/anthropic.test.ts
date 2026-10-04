@@ -109,7 +109,11 @@ describe("createAnthropicClient", () => {
 
   it("passes the key to the SDK", () => {
     createAnthropicClient("test-key");
-    expect(mocks.construct).toHaveBeenCalledWith({ apiKey: "test-key" });
+    expect(mocks.construct).toHaveBeenCalledWith({
+      apiKey: "test-key",
+      timeout: 60_000,
+      maxRetries: 1,
+    });
   });
 
   it("uses the beta endpoint for a fallback-capable model", async () => {

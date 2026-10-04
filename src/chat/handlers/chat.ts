@@ -2,6 +2,7 @@ import { createAnthropicClient, type ChatModelClient, type ReplyStream } from ".
 import { DailyBudget, parseDailyLimit } from "../budget";
 import type { ChatConfig } from "../config";
 import type { BusinessContent } from "../content";
+import { describeError } from "../errors";
 import {
   checkOrigin,
   clientIp,
@@ -44,8 +45,9 @@ function textResponse(body: BodyInit, mode: "holding" | "live"): Response {
   });
 }
 
-function errorName(error: unknown): string {
-  return error instanceof Error && error.name !== "" ? error.name : "unknown";
+function errorLine(error: unknown): string {
+  const { type, status } = describeError(error);
+  return `chat error type=${type} status=${status}`;
 }
 
 export function createChatHandler(deps: ChatHandlerDeps): (request: Request) => Promise<Response> {
@@ -95,7 +97,7 @@ export function createChatHandler(deps: ChatHandlerDeps): (request: Request) => 
           }
         } catch (error) {
           if (!cancelled && !signal.aborted) {
-            log(`chat error name=${errorName(error)}`);
+            log(errorLine(error));
             sendNotice();
           }
         } finally {
@@ -148,7 +150,7 @@ export function createChatHandler(deps: ChatHandlerDeps): (request: Request) => 
         signal: request.signal,
       });
     } catch (error) {
-      log(`chat error name=${errorName(error)}`);
+      log(errorLine(error));
       return textResponse(fallbackReply(content), "holding");
     }
     return liveResponse(reply, request.signal);

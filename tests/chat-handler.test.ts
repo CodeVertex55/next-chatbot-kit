@@ -418,17 +418,52 @@ describe("logging", () => {
     expect(logs.join("\n")).not.toContain("203.0.113.9");
   });
 
-  it("logs an error line with only the error name", async () => {
-    class UpstreamError extends Error {
+  it("logs the error type and status, never the message", async () => {
+    // The SDK's error classes all keep the name "Error" and carry a numeric status.
+    class RateLimitError extends Error {
+      status = 429;
       constructor() {
         super(`failed for ${SECRET_TEXT}`);
-        this.name = "UpstreamError";
       }
     }
-    const client = fakeClient({ chunks: [], error: { after: 0, value: new UpstreamError() } });
+    const error = new RateLimitError();
+    expect(error.name).toBe("Error");
+    const client = fakeClient({ chunks: [], error: { after: 0, value: error } });
     const { handler, logs } = setup({}, client);
     await (await handler(makeRequest())).text();
-    expect(logs).toEqual(["chat error name=UpstreamError"]);
+    expect(logs).toEqual(["chat error type=RateLimitError status=429"]);
+    expect(logs.join("\n")).not.toContain(SECRET_TEXT);
+  });
+
+  it("logs status=none when the error has no numeric status", async () => {
+    class ConnectionError extends Error {
+      status = "unavailable";
+    }
+    const client = fakeClient({ chunks: [], error: { after: 0, value: new ConnectionError("x") } });
+    const { handler, logs } = setup({}, client);
+    await (await handler(makeRequest())).text();
+    expect(logs).toEqual(["chat error type=ConnectionError status=none"]);
+  });
+
+  it("logs type=unknown for a thrown value that is not an object", async () => {
+    const client = fakeClient({ chunks: [], error: { after: 0, value: "plain text" } });
+    const { handler, logs } = setup({}, client);
+    await (await handler(makeRequest())).text();
+    expect(logs).toEqual(["chat error type=unknown status=none"]);
+  });
+
+  it("logs a synchronous client failure the same way", async () => {
+    class SetupError extends Error {
+      status = 500;
+    }
+    const client: ChatModelClient = {
+      stream() {
+        throw new SetupError(SECRET_TEXT);
+      },
+    };
+    const { handler, logs } = setup({}, client);
+    await handler(makeRequest());
+    expect(logs).toEqual(["chat error type=SetupError status=500"]);
   });
 
   it("defaults to console.log", async () => {

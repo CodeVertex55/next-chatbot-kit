@@ -35,8 +35,9 @@ What the kit does:
 
 - Both routes require an `Origin` header that matches the site's own host or a host in `CHAT_ALLOWED_ORIGINS`. A request with no `Origin` header is refused with 403.
 - Both routes limit requests per client address in a window. The defaults are 20 chat requests and 5 callback submissions per ten minutes. Over the limit, the route returns 429 with a `Retry-After` header.
-- The request body is limited to 64 KiB. It must be JSON.
+- The request body is limited to 64 KiB. It must be JSON. The limit is enforced while the body is read, so an oversized body is cut off and refused with 413 before it is held in memory.
 - `CHAT_DAILY_LIMIT` caps the number of model calls per UTC day. Past the cap, visitors get the holding reply.
+- Each model call times out after 60 seconds and is retried at most once, so a stalled request does not hold a connection open for long.
 
 What it does not do:
 
@@ -96,7 +97,7 @@ What it does not do:
 
 ## Privacy
 
-The server does not store or log visitor message text, lead contact details or IP addresses. The only things it logs are the model name, token counts and stop reason of a reply, the name of an error, and the name of a notifier that failed. Messages are sent to Anthropic to write each reply. Lead details go to the email or webhook you set up.
+The server does not store or log visitor message text, lead contact details or IP addresses. The only things it logs are the model name, token counts and stop reason of a reply, the class name and numeric status of an error (never its message), and the name of a notifier that failed. Messages are sent to Anthropic to write each reply. Lead details go to the email or webhook you set up.
 
 See the Privacy section of the [README](../README.md#privacy).
 

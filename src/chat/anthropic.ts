@@ -78,9 +78,16 @@ function toReplyStream(stream: SdkStream | BetaSdkStream): ReplyStream {
   return { textChunks: textOf(stream), done };
 }
 
+/** A request that has not finished after this long is abandoned. */
+const REQUEST_TIMEOUT_MS = 60_000;
+/** One retry covers a brief network fault without doubling the wait on a real outage. */
+const MAX_RETRIES = 1;
+
 export function createAnthropicClient(apiKey: string): ChatModelClient {
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, timeout: REQUEST_TIMEOUT_MS, maxRetries: MAX_RETRIES });
   return {
+    // The event iterator must be consumed in the same tick that stream() returns
+    // it: the handler starts reading it straight away, so keep it that way.
     stream(request: ReplyRequest): ReplyStream {
       const params = buildMessageParams(request);
       const options = { signal: request.signal };

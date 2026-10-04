@@ -204,7 +204,7 @@ describe("readJsonBody", () => {
 
   it("reads a streamed body that is under the cap", async () => {
     const encoder = new TextEncoder();
-    const parts = ['{"a":', '"café ', "é", '"}'];
+    const parts = ['{"a":', '"caf\u00e9 ', "\u00e9", '"}'];
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         for (const part of parts) controller.enqueue(encoder.encode(part));
@@ -217,7 +217,7 @@ describe("readJsonBody", () => {
       body: stream,
       duplex: "half",
     } as RequestInit);
-    expect(await readJsonBody(r)).toEqual({ ok: true, value: { a: "café é" } });
+    expect(await readJsonBody(r)).toEqual({ ok: true, value: { a: "caf\u00e9 \u00e9" } });
   });
 
   it("returns 400 when the body is null", async () => {
