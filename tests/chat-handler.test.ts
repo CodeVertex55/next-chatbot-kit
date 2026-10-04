@@ -226,6 +226,16 @@ describe("holding mode", () => {
     expect(second.headers.get("x-chat-mode")).toBe("holding");
   });
 
+  it("makes no model call when CHAT_DAILY_LIMIT is 0", async () => {
+    const { handler, createClient } = setup({
+      env: { ANTHROPIC_API_KEY: "k", CHAT_DAILY_LIMIT: "0" },
+    });
+    const res = await handler(makeRequest());
+    expect(res.headers.get("x-chat-mode")).toBe("holding");
+    expect(await res.text()).toBe(holdingReply(testContent));
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
   it("does not spend budget when there is no key", async () => {
     const budget = new DailyBudget(1);
     const spy = vi.spyOn(budget, "tryConsume");

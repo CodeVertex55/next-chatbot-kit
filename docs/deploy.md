@@ -44,7 +44,7 @@ Set up at least one of email or webhook before launch. With neither, a lead is d
 
 ### CHAT_DAILY_LIMIT
 
-The most model calls the chat route will make per UTC day. When the count is reached, visitors get the holding reply until the next UTC day. Empty, zero or a value that is not a number means no limit.
+The most model calls the chat route will make per UTC day. When the count is reached, visitors get the holding reply until the next UTC day. Only plain digits count as a number. `0` means no model calls at all, so every visitor gets the holding reply. Empty, negative or any value that is not plain digits means no limit.
 
 The count is kept in memory by each server instance. On a host that runs several instances, each one counts on its own. Treat the number as a rough guard. It does not replace a spend limit.
 

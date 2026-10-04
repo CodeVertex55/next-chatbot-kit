@@ -172,6 +172,69 @@ describe("readJsonBody", () => {
     expect(await readJsonBody(r, 20)).toEqual({ ok: false, status: 413 });
   });
 
+  it("returns 413 and cancels a streamed body that has no content length", async () => {
+    const encoder = new TextEncoder();
+    const total = 40;
+    let pulled = 0;
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled >= total) {
+          controller.close();
+          return;
+        }
+        pulled += 1;
+        controller.enqueue(encoder.encode("x".repeat(1000)));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const r = new Request("https://site.example", {
+      method: "POST",
+      headers: json,
+      body: stream,
+      duplex: "half",
+    } as RequestInit);
+    expect(r.headers.get("content-length")).toBeNull();
+    expect(await readJsonBody(r, 5000)).toEqual({ ok: false, status: 413 });
+    expect(cancelled).toBe(true);
+    expect(pulled).toBeLessThan(total);
+  });
+
+  it("reads a streamed body that is under the cap", async () => {
+    const encoder = new TextEncoder();
+    const parts = ['{"a":', '"café ', "é", '"}'];
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const part of parts) controller.enqueue(encoder.encode(part));
+        controller.close();
+      },
+    });
+    const r = new Request("https://site.example", {
+      method: "POST",
+      headers: json,
+      body: stream,
+      duplex: "half",
+    } as RequestInit);
+    expect(await readJsonBody(r)).toEqual({ ok: true, value: { a: "café é" } });
+  });
+
+  it("returns 400 when the body is null", async () => {
+    const stub = { headers: new Headers(json), body: null } as unknown as Request;
+    expect(await readJsonBody(stub)).toEqual({ ok: false, status: 400 });
+  });
+
+  it("returns 400 when reading the body fails", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error("broken"));
+      },
+    });
+    const stub = { headers: new Headers(json), body: stream } as unknown as Request;
+    expect(await readJsonBody(stub)).toEqual({ ok: false, status: 400 });
+  });
+
   it("returns 400 for bad JSON", async () => {
     const r = req("https://site.example", json, { body: "{not json" });
     expect(await readJsonBody(r)).toEqual({ ok: false, status: 400 });

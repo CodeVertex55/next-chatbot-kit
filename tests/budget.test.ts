@@ -15,21 +15,26 @@ describe("parseDailyLimit", () => {
     expect(parseDailyLimit("abc")).toBeNull();
     expect(parseDailyLimit("NaN")).toBeNull();
     expect(parseDailyLimit("Infinity")).toBeNull();
-  });
-
-  it("returns null below 1", () => {
-    expect(parseDailyLimit("0")).toBeNull();
-    expect(parseDailyLimit("-5")).toBeNull();
+    expect(parseDailyLimit("1e3")).toBeNull();
+    expect(parseDailyLimit("0x10")).toBeNull();
+    expect(parseDailyLimit("12.9")).toBeNull();
     expect(parseDailyLimit("0.5")).toBeNull();
   });
 
-  it("parses whole numbers", () => {
-    expect(parseDailyLimit("1")).toBe(1);
-    expect(parseDailyLimit(" 250 ")).toBe(250);
+  it("returns null for negative values", () => {
+    expect(parseDailyLimit("-5")).toBeNull();
+    expect(parseDailyLimit("-0")).toBeNull();
   });
 
-  it("rounds down fractional values", () => {
-    expect(parseDailyLimit("12.9")).toBe(12);
+  it("treats zero as a limit of zero calls", () => {
+    expect(parseDailyLimit("0")).toBe(0);
+    expect(parseDailyLimit(" 0 ")).toBe(0);
+    expect(parseDailyLimit("000")).toBe(0);
+  });
+
+  it("parses plain whole numbers", () => {
+    expect(parseDailyLimit("1")).toBe(1);
+    expect(parseDailyLimit(" 250 ")).toBe(250);
   });
 });
 
@@ -37,6 +42,12 @@ describe("DailyBudget", () => {
   it("always allows when the limit is null", () => {
     const budget = new DailyBudget(null);
     for (let i = 0; i < 1000; i += 1) expect(budget.tryConsume(day0)).toBe(true);
+  });
+
+  it("refuses every call when the limit is zero", () => {
+    const budget = new DailyBudget(0);
+    expect(budget.tryConsume(day0)).toBe(false);
+    expect(budget.tryConsume(day0 + DAY)).toBe(false);
   });
 
   it("allows up to the limit and then refuses", () => {

@@ -196,17 +196,17 @@ The default `leadSensitiveNote` mentions medical details, so change it if your b
 
 Every variable is optional. With none set, the app builds and runs, the chat gives the holding reply, and leads go to the console.
 
-| Variable               | Purpose                                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `ANTHROPIC_API_KEY`    | Your Anthropic API key. Without it the chat uses [holding mode](#holding-mode).                              |
-| `CHAT_MODEL`           | The model id for replies. Empty means the kit default. See [Model choice](#model-choice).                    |
-| `CHAT_DAILY_LIMIT`     | The most model calls allowed per UTC day, per server instance. Empty means no limit.                         |
-| `CHAT_ALLOWED_ORIGINS` | Extra hosts, separated by commas, that may call the routes. The site's own host is always allowed.           |
-| `SITE_URL`             | The public address of the site, such as `https://example.com`. The demo defaults to `http://localhost:3000`. |
-| `RESEND_API_KEY`       | Resend API key for emailing leads. Needs `LEAD_EMAIL_TO` and `LEAD_EMAIL_FROM` as well.                      |
-| `LEAD_EMAIL_TO`        | Where lead emails are sent.                                                                                  |
-| `LEAD_EMAIL_FROM`      | The sender address for lead emails, on a domain you have verified with Resend.                               |
-| `LEAD_WEBHOOK_URL`     | An `https` address that receives each lead as a JSON post.                                                   |
+| Variable               | Purpose                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`    | Your Anthropic API key. Without it the chat uses [holding mode](#holding-mode).                                |
+| `CHAT_MODEL`           | The model id for replies. Empty means the kit default. See [Model choice](#model-choice).                      |
+| `CHAT_DAILY_LIMIT`     | The most model calls allowed per UTC day, per server instance. Empty means no limit. `0` means no model calls. |
+| `CHAT_ALLOWED_ORIGINS` | Extra hosts, separated by commas, that may call the routes. The site's own host is always allowed.             |
+| `SITE_URL`             | The public address of the site, such as `https://example.com`. The demo defaults to `http://localhost:3000`.   |
+| `RESEND_API_KEY`       | Resend API key for emailing leads. Needs `LEAD_EMAIL_TO` and `LEAD_EMAIL_FROM` as well.                        |
+| `LEAD_EMAIL_TO`        | Where lead emails are sent.                                                                                    |
+| `LEAD_EMAIL_FROM`      | The sender address for lead emails, on a domain you have verified with Resend.                                 |
+| `LEAD_WEBHOOK_URL`     | An `https` address that receives each lead as a JSON post.                                                     |
 
 `SITE_URL` is read by the demo's content file, not by the kit. If you write your own content file, read it the way step 3 shows.
 
@@ -249,7 +249,7 @@ Whichever model you choose, run `npm run check:rules` after you change it.
 The chat answers with a fixed reply, without calling the model, when:
 
 - `ANTHROPIC_API_KEY` is empty or missing, or
-- the `CHAT_DAILY_LIMIT` for the day has been used up. The count starts again at midnight UTC.
+- the `CHAT_DAILY_LIMIT` for the day has been used up. The count starts again at midnight UTC. A limit of `0` means the chat always gives the holding reply.
 
 The reply thanks the visitor and gives the phone number and email. The response carries the header `x-chat-mode: holding`. No model client is created in this mode, so it costs nothing.
 

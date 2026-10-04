@@ -79,14 +79,34 @@ export async function readJsonBody(
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > maxBytes) return { ok: false, status: 413 };
 
-  let bytes: ArrayBuffer;
+  const stream = request.body;
+  if (stream === null || stream === undefined) return { ok: false, status: 400 };
+
+  // The cap is enforced while reading, so an oversized body is never buffered whole.
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
   try {
-    bytes = await request.arrayBuffer();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, status: 413 };
+      }
+      chunks.push(value);
+    }
   } catch {
     return { ok: false, status: 400 };
   }
-  if (bytes.byteLength > maxBytes) return { ok: false, status: 413 };
 
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   try {
     return { ok: true, value: JSON.parse(new TextDecoder().decode(bytes)) as unknown };
   } catch {
