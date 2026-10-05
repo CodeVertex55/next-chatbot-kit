@@ -338,3 +338,5 @@ The script reads `.env.local` itself. To use it in your own project, copy `scrip
 MIT. See [LICENSE](LICENSE).
 
 Also in this repo: [system prompt template](docs/system-prompt-template.md), [writing rules](docs/writing-rules.md), [deploy](docs/deploy.md), [security](docs/security.md), [contributing](CONTRIBUTING.md), [changelog](CHANGELOG.md) and the [security policy](SECURITY.md).
+
+Built by [Talha Muneer](https://www.talhamuneer.com), a full-stack and AI engineer working with agencies and businesses in the United States, the United Kingdom, Australia and Europe. More of his work: [GitHub](https://github.com/talha55) and [case studies](https://github.com/talha55/case-studies).
