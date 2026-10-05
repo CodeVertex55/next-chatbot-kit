@@ -6,7 +6,7 @@ Please report security problems privately. Do not open a public issue.
 
 Use GitHub security advisories on this repository:
 
-1. Open the [Security tab](https://github.com/talha55/next-chatbot-kit/security) of the repository.
+1. Open the [Security tab](https://github.com/CodeVertex55/next-chatbot-kit/security) of the repository.
 2. Choose "Report a vulnerability".
 3. Describe the problem, the steps to reproduce it and the version you tested.
 

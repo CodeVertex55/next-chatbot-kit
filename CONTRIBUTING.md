@@ -7,7 +7,7 @@ Thanks for taking an interest. Small fixes and clear bug reports are welcome. Fo
 You need Node 22 or newer.
 
 ```bash
-git clone https://github.com/talha55/next-chatbot-kit.git
+git clone https://github.com/CodeVertex55/next-chatbot-kit.git
 cd next-chatbot-kit
 npm install
 cp .env.example .env.local
